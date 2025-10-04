@@ -1,368 +1,303 @@
 <template>
   <div class="notification-center">
-    <!-- 通知铃铛图标 -->
-    <a-badge :count="unreadCount" :offset="[-2, 2]">
-      <a-button 
-        type="text" 
-        shape="circle" 
-        size="large"
-        @click="toggleNotifications"
-        :class="{ 'notification-active': showNotifications }"
-      >
+    <!-- 通知中心头部 -->
+    <div class="notification-header">
+      <div class="header-left">
         <Bell class="w-5 h-5" />
-      </a-button>
-    </a-badge>
-
-    <!-- 通知面板 -->
-    <div 
-      v-if="showNotifications" 
-      class="notification-panel"
-      v-click-outside="closeNotifications"
-    >
-      <div class="panel-header">
-        <h3 class="panel-title">通知中心</h3>
-        <div class="header-actions">
-          <a-button 
-            type="text" 
-            size="small" 
-            @click="markAllAsRead"
-            :disabled="unreadCount === 0"
-          >
+        <h3>通知中心</h3>
+        <a-badge :count="unreadCount" :offset="[10, 0]" />
+      </div>
+      <div class="header-right">
+        <a-space>
+          <a-button size="small" @click="markAllAsRead" :disabled="unreadCount === 0">
             全部已读
           </a-button>
-          <a-button type="text" size="small" @click="showSettings = true">
-            <Settings class="w-4 h-4" />
+          <a-button size="small" @click="clearAll">
+            清空全部
           </a-button>
-        </div>
-      </div>
-
-      <!-- 通知筛选 -->
-      <div class="notification-filters">
-        <a-radio-group 
-          v-model:value="activeFilter" 
-          button-style="solid" 
-          size="small"
-          @change="filterNotifications"
-        >
-          <a-radio-button value="all">全部</a-radio-button>
-          <a-radio-button value="unread">未读</a-radio-button>
-          <a-radio-button value="achievement">成就</a-radio-button>
-          <a-radio-button value="reminder">提醒</a-radio-button>
-        </a-radio-group>
-      </div>
-
-      <!-- 通知列表 -->
-      <div class="notification-list">
-        <div 
-          v-for="notification in filteredNotifications" 
-          :key="notification.id"
-          class="notification-item"
-          :class="{ 
-            'unread': !notification.read,
-            [`type-${notification.type}`]: true 
-          }"
-          @click="handleNotificationClick(notification)"
-        >
-          <div class="notification-icon" :style="getNotificationIconStyle(notification.type)">
-            <component :is="getNotificationIcon(notification.type)" class="w-4 h-4" />
-          </div>
-          
-          <div class="notification-content">
-            <div class="notification-header">
-              <h4 class="notification-title">{{ notification.title }}</h4>
-              <span class="notification-time">{{ formatTime(notification.createdAt) }}</span>
-            </div>
-            <p class="notification-message">{{ notification.message }}</p>
-            
-            <!-- 成就通知特殊显示 -->
-            <div v-if="notification.type === 'achievement'" class="achievement-info">
-              <div class="achievement-badge">
-                <Trophy class="w-3 h-3 mr-1" />
-                {{ notification.achievementName }}
-              </div>
-              <div class="achievement-points">+{{ notification.points }} 积分</div>
-            </div>
-            
-            <!-- 学习提醒特殊显示 -->
-            <div v-if="notification.type === 'reminder'" class="reminder-actions">
-              <a-button size="small" type="primary" @click.stop="startLearning(notification)">
-                开始学习
-              </a-button>
-              <a-button size="small" @click.stop="snoozeReminder(notification)">
-                稍后提醒
-              </a-button>
-            </div>
-          </div>
-          
-          <div class="notification-actions">
-            <a-button 
-              type="text" 
-              size="small" 
-              @click.stop="toggleRead(notification)"
-              :title="notification.read ? '标记为未读' : '标记为已读'"
-            >
-              <component :is="notification.read ? 'Mail' : 'MailOpen'" class="w-3 h-3" />
+          <a-dropdown>
+            <template #overlay>
+              <a-menu @click="handleFilterChange">
+                <a-menu-item key="all">全部通知</a-menu-item>
+                <a-menu-item key="unread">未读通知</a-menu-item>
+                <a-menu-item key="system">系统通知</a-menu-item>
+                <a-menu-item key="learning">学习提醒</a-menu-item>
+                <a-menu-item key="achievement">成就通知</a-menu-item>
+              </a-menu>
+            </template>
+            <a-button size="small">
+              筛选 <ChevronDown class="w-4 h-4" />
             </a-button>
-            <a-button 
-              type="text" 
-              size="small" 
-              @click.stop="deleteNotification(notification.id)"
-              title="删除通知"
-            >
-              <X class="w-3 h-3" />
-            </a-button>
-          </div>
-        </div>
-        
-        <!-- 空状态 -->
-        <div v-if="filteredNotifications.length === 0" class="empty-notifications">
-          <div class="empty-icon">
-            <Bell class="w-12 h-12" />
-          </div>
-          <p class="empty-text">
-            {{ activeFilter === 'unread' ? '没有未读通知' : '暂无通知' }}
-          </p>
-        </div>
-      </div>
-
-      <!-- 查看更多 -->
-      <div class="panel-footer" v-if="notifications.length > 5">
-        <a-button type="link" @click="showAllNotifications">
-          查看全部通知
-        </a-button>
+          </a-dropdown>
+        </a-space>
       </div>
     </div>
 
-    <!-- 通知设置弹窗 -->
-    <a-modal 
-      v-model:open="showSettings" 
-      title="通知设置" 
-      @ok="saveNotificationSettings"
-      width="500px"
-    >
-      <div class="notification-settings">
-        <div class="setting-group">
-          <h4 class="group-title">通知类型</h4>
-          <div class="setting-item" v-for="type in notificationTypes" :key="type.key">
-            <div class="setting-info">
-              <span class="setting-name">{{ type.name }}</span>
-              <span class="setting-description">{{ type.description }}</span>
-            </div>
-            <a-switch v-model:checked="notificationSettings[type.key]" />
+    <!-- 通知列表 -->
+    <div class="notification-list">
+      <a-empty v-if="filteredNotifications.length === 0" description="暂无通知" />
+      
+      <div 
+        v-for="notification in filteredNotifications" 
+        :key="notification.id"
+        class="notification-item"
+        :class="{ 'unread': !notification.read, 'priority-high': notification.priority === 'high' }"
+        @click="handleNotificationClick(notification)"
+      >
+        <div class="notification-icon">
+          <component 
+            :is="getNotificationIcon(notification.type)" 
+            class="w-5 h-5"
+            :class="getIconColor(notification.type)"
+          />
+        </div>
+        
+        <div class="notification-content">
+          <div class="notification-title">
+            {{ notification.title }}
+            <a-tag v-if="notification.priority === 'high'" color="red" size="small">重要</a-tag>
+          </div>
+          <div class="notification-message">{{ notification.message }}</div>
+          <div class="notification-meta">
+            <span class="notification-time">{{ formatTime(notification.timestamp) }}</span>
+            <a-tag :color="getTypeColor(notification.type)" size="small">
+              {{ getTypeLabel(notification.type) }}
+            </a-tag>
           </div>
         </div>
+        
+        <div class="notification-actions">
+          <a-dropdown>
+            <template #overlay>
+              <a-menu @click="(e) => handleActionClick(e, notification)">
+                <a-menu-item key="read" v-if="!notification.read">标记已读</a-menu-item>
+                <a-menu-item key="unread" v-if="notification.read">标记未读</a-menu-item>
+                <a-menu-item key="delete">删除</a-menu-item>
+                <a-menu-item key="details" v-if="notification.actionUrl">查看详情</a-menu-item>
+              </a-menu>
+            </template>
+            <a-button type="text" size="small">
+              <MoreVertical class="w-4 h-4" />
+            </a-button>
+          </a-dropdown>
+        </div>
+      </div>
+    </div>
 
-        <div class="setting-group">
-          <h4 class="group-title">提醒时间</h4>
-          <div class="setting-item">
-            <div class="setting-info">
-              <span class="setting-name">学习提醒时间</span>
-              <span class="setting-description">每日学习提醒的时间</span>
-            </div>
-            <a-time-picker 
-              v-model:value="notificationSettings.reminderTime" 
-              format="HH:mm"
-              placeholder="选择时间"
+    <!-- 通知详情模态框 -->
+    <a-modal
+      v-model:open="detailModalVisible"
+      title="通知详情"
+      :footer="null"
+      width="600px"
+    >
+      <div v-if="selectedNotification" class="notification-detail">
+        <div class="detail-header">
+          <div class="detail-icon">
+            <component 
+              :is="getNotificationIcon(selectedNotification.type)" 
+              class="w-8 h-8"
+              :class="getIconColor(selectedNotification.type)"
             />
           </div>
-          
-          <div class="setting-item">
-            <div class="setting-info">
-              <span class="setting-name">提前提醒</span>
-              <span class="setting-description">在目标截止前提醒</span>
+          <div class="detail-info">
+            <h3>{{ selectedNotification.title }}</h3>
+            <div class="detail-meta">
+              <a-tag :color="getTypeColor(selectedNotification.type)">
+                {{ getTypeLabel(selectedNotification.type) }}
+              </a-tag>
+              <span class="detail-time">{{ formatTime(selectedNotification.timestamp) }}</span>
             </div>
-            <a-select 
-              v-model:value="notificationSettings.advanceReminder" 
-              style="width: 120px"
-            >
-              <a-select-option value="1">1天前</a-select-option>
-              <a-select-option value="3">3天前</a-select-option>
-              <a-select-option value="7">7天前</a-select-option>
-            </a-select>
           </div>
         </div>
-
-        <div class="setting-group">
-          <h4 class="group-title">声音设置</h4>
-          <div class="setting-item">
-            <div class="setting-info">
-              <span class="setting-name">通知声音</span>
-              <span class="setting-description">接收通知时播放声音</span>
-            </div>
-            <a-switch v-model:checked="notificationSettings.soundEnabled" />
+        
+        <div class="detail-content">
+          <p>{{ selectedNotification.message }}</p>
+          <div v-if="selectedNotification.details" class="detail-extra">
+            <h4>详细信息</h4>
+            <div v-html="selectedNotification.details"></div>
           </div>
-          
-          <div class="setting-item" v-if="notificationSettings.soundEnabled">
-            <div class="setting-info">
-              <span class="setting-name">声音类型</span>
-            </div>
-            <a-select v-model:value="notificationSettings.soundType" style="width: 120px">
-              <a-select-option value="default">默认</a-select-option>
-              <a-select-option value="chime">铃声</a-select-option>
-              <a-select-option value="ding">叮咚</a-select-option>
-            </a-select>
-          </div>
+        </div>
+        
+        <div class="detail-actions">
+          <a-space>
+            <a-button 
+              v-if="selectedNotification.actionUrl" 
+              type="primary" 
+              @click="handleActionUrl(selectedNotification.actionUrl)"
+            >
+              {{ selectedNotification.actionText || '查看详情' }}
+            </a-button>
+            <a-button @click="markAsRead(selectedNotification.id)">
+              标记已读
+            </a-button>
+            <a-button @click="detailModalVisible = false">
+              关闭
+            </a-button>
+          </a-space>
         </div>
       </div>
     </a-modal>
 
-    <!-- 浮动通知 -->
-    <transition-group name="toast" tag="div" class="toast-container">
-      <div 
-        v-for="toast in toastNotifications" 
-        :key="toast.id"
-        class="toast-notification"
-        :class="`toast-${toast.type}`"
-      >
-        <div class="toast-icon">
-          <component :is="getNotificationIcon(toast.type)" class="w-5 h-5" />
-        </div>
-        <div class="toast-content">
-          <h4 class="toast-title">{{ toast.title }}</h4>
-          <p class="toast-message">{{ toast.message }}</p>
-        </div>
-        <a-button 
-          type="text" 
-          size="small" 
-          @click="dismissToast(toast.id)"
-          class="toast-close"
-        >
-          <X class="w-4 h-4" />
-        </a-button>
+    <!-- 通知设置模态框 -->
+    <a-modal
+      v-model:open="settingsModalVisible"
+      title="通知设置"
+      @ok="saveNotificationSettings"
+      width="500px"
+    >
+      <div class="notification-settings">
+        <a-form layout="vertical">
+          <a-form-item label="通知类型">
+            <a-checkbox-group v-model:value="settings.enabledTypes">
+              <a-checkbox value="system">系统通知</a-checkbox>
+              <a-checkbox value="learning">学习提醒</a-checkbox>
+              <a-checkbox value="achievement">成就通知</a-checkbox>
+              <a-checkbox value="social">社交通知</a-checkbox>
+            </a-checkbox-group>
+          </a-form-item>
+          
+          <a-form-item label="通知方式">
+            <a-checkbox-group v-model:value="settings.methods">
+              <a-checkbox value="browser">浏览器通知</a-checkbox>
+              <a-checkbox value="sound">声音提醒</a-checkbox>
+              <a-checkbox value="email">邮件通知</a-checkbox>
+            </a-checkbox-group>
+          </a-form-item>
+          
+          <a-form-item label="免打扰时间">
+            <a-time-range-picker 
+              v-model:value="settings.quietHours" 
+              format="HH:mm"
+              placeholder="['开始时间', '结束时间']"
+            />
+          </a-form-item>
+          
+          <a-form-item label="学习提醒频率">
+            <a-select v-model:value="settings.learningReminderFrequency" style="width: 100%">
+              <a-select-option value="never">从不</a-select-option>
+              <a-select-option value="daily">每天</a-select-option>
+              <a-select-option value="weekly">每周</a-select-option>
+              <a-select-option value="custom">自定义</a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-form>
       </div>
-    </transition-group>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
-import dayjs, { Dayjs } from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
 import {
   Bell,
-  Settings,
-  Trophy,
-  Clock,
-  Target,
-  BookOpen,
-  Mail,
-  MailOpen,
-  X,
+  ChevronDown,
+  MoreVertical,
   AlertCircle,
-  CheckCircle,
   Info,
-  Gift
+  CheckCircle,
+  Award,
+  BookOpen,
+  Settings,
+  Users,
+  Zap
 } from 'lucide-vue-next'
 
-dayjs.extend(relativeTime)
+interface Notification {
+  id: string
+  title: string
+  message: string
+  type: 'system' | 'learning' | 'achievement' | 'social' | 'warning' | 'info'
+  priority: 'low' | 'medium' | 'high'
+  read: boolean
+  timestamp: string
+  actionUrl?: string
+  actionText?: string
+  details?: string
+}
 
-const router = useRouter()
+interface NotificationSettings {
+  enabledTypes: string[]
+  methods: string[]
+  quietHours: [string, string] | null
+  learningReminderFrequency: string
+}
 
 // 响应式数据
-const showNotifications = ref(false)
-const showSettings = ref(false)
-const activeFilter = ref('all')
-const toastNotifications = ref<any[]>([])
-
-// 通知设置
-const notificationSettings = reactive({
-  achievement: true,
-  reminder: true,
-  progress: true,
-  system: true,
-  reminderTime: dayjs('18:00', 'HH:mm'),
-  advanceReminder: '3',
-  soundEnabled: true,
-  soundType: 'default'
-})
-
-// 通知类型配置
-const notificationTypes = [
-  {
-    key: 'achievement',
-    name: '成就通知',
-    description: '获得新成就时通知'
-  },
-  {
-    key: 'reminder',
-    name: '学习提醒',
-    description: '定时学习提醒'
-  },
-  {
-    key: 'progress',
-    name: '进度通知',
-    description: '学习进度更新通知'
-  },
-  {
-    key: 'system',
-    name: '系统通知',
-    description: '系统更新和重要消息'
-  }
-]
+const router = useRouter()
+const currentFilter = ref('all')
+const detailModalVisible = ref(false)
+const settingsModalVisible = ref(false)
+const selectedNotification = ref<Notification | null>(null)
 
 // 通知数据
-const notifications = ref([
+const notifications = ref<Notification[]>([
   {
-    id: 1,
+    id: '1',
+    title: '学习目标达成',
+    message: '恭喜你完成了今天的学习目标！继续保持哦～',
     type: 'achievement',
-    title: '🎉 新成就解锁！',
-    message: '恭喜您获得"连续学习7天"成就！',
-    achievementName: '坚持不懈',
-    points: 100,
+    priority: 'medium',
     read: false,
-    createdAt: '2024-01-26T10:30:00Z',
-    actionUrl: '/achievements'
+    timestamp: new Date().toISOString(),
+    actionUrl: '/reports',
+    actionText: '查看报告',
+    details: '今天你完成了3个单词学习任务，掌握了15个新单词，学习时长达到30分钟。'
   },
   {
-    id: 2,
-    type: 'reminder',
-    title: '⏰ 学习时间到了',
-    message: '该开始今天的英语学习了，坚持就是胜利！',
-    read: false,
-    createdAt: '2024-01-26T09:00:00Z',
-    actionUrl: '/games'
-  },
-  {
-    id: 3,
-    type: 'progress',
-    title: '📈 学习进度更新',
-    message: '您的词汇掌握度已达到85%，继续加油！',
-    read: true,
-    createdAt: '2024-01-25T16:45:00Z',
-    actionUrl: '/reports'
-  },
-  {
-    id: 4,
+    id: '2',
+    title: '系统维护通知',
+    message: '系统将于今晚22:00-23:00进行维护，期间可能无法正常使用',
     type: 'system',
-    title: '🆕 新功能上线',
-    message: '口语练习功能已上线，快来体验吧！',
-    read: true,
-    createdAt: '2024-01-25T14:20:00Z',
-    actionUrl: '/games'
-  },
-  {
-    id: 5,
-    type: 'achievement',
-    title: '🏆 目标达成',
-    message: '本月单词学习目标已完成！',
-    achievementName: '词汇大师',
-    points: 200,
+    priority: 'high',
     read: false,
-    createdAt: '2024-01-24T20:15:00Z',
-    actionUrl: '/goals'
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+    details: '维护内容包括：数据库优化、新功能上线、bug修复等。维护期间请保存好学习进度。'
   },
   {
-    id: 6,
-    type: 'reminder',
-    title: '📅 目标即将到期',
-    message: '您的"每周练习口语5次"目标将在2天后到期',
+    id: '3',
+    title: '学习提醒',
+    message: '该学习英语啦！今天还没有开始学习哦',
+    type: 'learning',
+    priority: 'medium',
     read: true,
-    createdAt: '2024-01-24T12:00:00Z',
-    actionUrl: '/goals'
+    timestamp: new Date(Date.now() - 7200000).toISOString(),
+    actionUrl: '/games',
+    actionText: '开始学习'
+  },
+  {
+    id: '4',
+    title: '新徽章获得',
+    message: '获得"单词达人"徽章！你已经掌握了100个单词',
+    type: 'achievement',
+    priority: 'medium',
+    read: true,
+    timestamp: new Date(Date.now() - 86400000).toISOString(),
+    actionUrl: '/profile',
+    actionText: '查看徽章'
+  },
+  {
+    id: '5',
+    title: '好友邀请',
+    message: '小明邀请你一起学习英语，快来接受挑战吧！',
+    type: 'social',
+    priority: 'low',
+    read: false,
+    timestamp: new Date(Date.now() - 172800000).toISOString(),
+    actionUrl: '/social',
+    actionText: '查看邀请'
   }
 ])
+
+// 通知设置
+const settings = ref<NotificationSettings>({
+  enabledTypes: ['system', 'learning', 'achievement'],
+  methods: ['browser', 'sound'],
+  quietHours: null,
+  learningReminderFrequency: 'daily'
+})
 
 // 计算属性
 const unreadCount = computed(() => 
@@ -372,73 +307,67 @@ const unreadCount = computed(() =>
 const filteredNotifications = computed(() => {
   let filtered = notifications.value
 
-  switch (activeFilter.value) {
+  switch (currentFilter.value) {
     case 'unread':
       filtered = filtered.filter(n => !n.read)
       break
+    case 'system':
+    case 'learning':
     case 'achievement':
-      filtered = filtered.filter(n => n.type === 'achievement')
-      break
-    case 'reminder':
-      filtered = filtered.filter(n => n.type === 'reminder')
+      filtered = filtered.filter(n => n.type === currentFilter.value)
       break
   }
 
-  return filtered.slice(0, 10) // 限制显示数量
+  return filtered.sort((a, b) => 
+    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  )
 })
 
 // 方法
-const toggleNotifications = () => {
-  showNotifications.value = !showNotifications.value
+const handleFilterChange = ({ key }: { key: string }) => {
+  currentFilter.value = key
 }
 
-const closeNotifications = () => {
-  showNotifications.value = false
-}
-
-const filterNotifications = () => {
-  // 筛选逻辑已在计算属性中实现
-}
-
-const getNotificationIcon = (type: string) => {
-  const icons = {
-    achievement: Trophy,
-    reminder: Clock,
-    progress: Target,
-    system: Info,
-    goal: Target,
-    learning: BookOpen
-  }
-  return icons[type as keyof typeof icons] || Bell
-}
-
-const getNotificationIconStyle = (type: string) => {
-  const styles = {
-    achievement: { background: '#fff7e6', color: '#fa8c16' },
-    reminder: { background: '#e6f7ff', color: '#1890ff' },
-    progress: { background: '#f6ffed', color: '#52c41a' },
-    system: { background: '#f0f0f0', color: '#595959' }
-  }
-  return styles[type as keyof typeof styles] || styles.system
-}
-
-const formatTime = (time: string) => {
-  return dayjs(time).fromNow()
-}
-
-const handleNotificationClick = (notification: any) => {
-  if (!notification.read) {
-    toggleRead(notification)
-  }
+const handleNotificationClick = (notification: Notification) => {
+  selectedNotification.value = notification
+  detailModalVisible.value = true
   
-  if (notification.actionUrl) {
-    router.push(notification.actionUrl)
-    closeNotifications()
+  if (!notification.read) {
+    markAsRead(notification.id)
   }
 }
 
-const toggleRead = (notification: any) => {
-  notification.read = !notification.read
+const handleActionClick = ({ key }: { key: string }, notification: Notification) => {
+  switch (key) {
+    case 'read':
+      markAsRead(notification.id)
+      break
+    case 'unread':
+      markAsUnread(notification.id)
+      break
+    case 'delete':
+      deleteNotification(notification.id)
+      break
+    case 'details':
+      handleNotificationClick(notification)
+      break
+  }
+}
+
+const markAsRead = (id: string) => {
+  const notification = notifications.value.find(n => n.id === id)
+  if (notification) {
+    notification.read = true
+    message.success('已标记为已读')
+  }
+}
+
+const markAsUnread = (id: string) => {
+  const notification = notifications.value.find(n => n.id === id)
+  if (notification) {
+    notification.read = false
+    message.success('已标记为未读')
+  }
 }
 
 const markAllAsRead = () => {
@@ -446,485 +375,353 @@ const markAllAsRead = () => {
   message.success('所有通知已标记为已读')
 }
 
-const deleteNotification = (id: number) => {
+const deleteNotification = (id: string) => {
   const index = notifications.value.findIndex(n => n.id === id)
-  if (index > -1) {
+  if (index !== -1) {
     notifications.value.splice(index, 1)
     message.success('通知已删除')
   }
 }
 
-const startLearning = (notification: any) => {
-  router.push('/games')
-  closeNotifications()
-  message.success('开始学习！')
+const clearAll = () => {
+  notifications.value = []
+  message.success('所有通知已清空')
 }
 
-const snoozeReminder = (notification: any) => {
-  // 延迟提醒逻辑
-  message.info('将在30分钟后再次提醒')
-  deleteNotification(notification.id)
-}
-
-const showAllNotifications = () => {
-  // 跳转到完整的通知页面
-  router.push('/notifications')
-  closeNotifications()
+const handleActionUrl = (url: string) => {
+  router.push(url)
+  detailModalVisible.value = false
 }
 
 const saveNotificationSettings = () => {
-  // 保存通知设置
+  // 保存通知设置到本地存储
+  localStorage.setItem('notificationSettings', JSON.stringify(settings.value))
   message.success('通知设置已保存')
-  showSettings.value = false
+  settingsModalVisible.value = false
 }
 
-// 添加新通知
-const addNotification = (notification: any) => {
-  const newNotification = {
-    id: Date.now(),
-    read: false,
-    createdAt: new Date().toISOString(),
-    ...notification
+// 工具函数
+const getNotificationIcon = (type: string) => {
+  const icons: Record<string, any> = {
+    system: Settings,
+    learning: BookOpen,
+    achievement: Award,
+    social: Users,
+    warning: AlertCircle,
+    info: Info
   }
-  
-  notifications.value.unshift(newNotification)
-  
-  // 显示浮动通知
-  if (notificationSettings[notification.type as keyof typeof notificationSettings]) {
-    showToast(newNotification)
-  }
-  
-  // 播放通知声音
-  if (notificationSettings.soundEnabled) {
-    playNotificationSound()
-  }
+  return icons[type] || Info
 }
 
-// 显示浮动通知
-const showToast = (notification: any) => {
-  const toast = {
-    id: Date.now(),
-    type: notification.type,
-    title: notification.title,
-    message: notification.message
+const getIconColor = (type: string): string => {
+  const colors: Record<string, string> = {
+    system: 'text-blue-500',
+    learning: 'text-green-500',
+    achievement: 'text-yellow-500',
+    social: 'text-purple-500',
+    warning: 'text-red-500',
+    info: 'text-gray-500'
   }
-  
-  toastNotifications.value.push(toast)
-  
-  // 3秒后自动消失
-  setTimeout(() => {
-    dismissToast(toast.id)
-  }, 3000)
+  return colors[type] || 'text-gray-500'
 }
 
-const dismissToast = (id: number) => {
-  const index = toastNotifications.value.findIndex(t => t.id === id)
-  if (index > -1) {
-    toastNotifications.value.splice(index, 1)
+const getTypeColor = (type: string): string => {
+  const colors: Record<string, string> = {
+    system: 'blue',
+    learning: 'green',
+    achievement: 'gold',
+    social: 'purple',
+    warning: 'red',
+    info: 'default'
   }
+  return colors[type] || 'default'
 }
 
-// 播放通知声音
-const playNotificationSound = () => {
-  if ('Audio' in window) {
-    const audio = new Audio('/sounds/notification.mp3')
-    audio.volume = 0.5
-    audio.play().catch(() => {
-      // 忽略播放失败的错误
-    })
+const getTypeLabel = (type: string): string => {
+  const labels: Record<string, string> = {
+    system: '系统',
+    learning: '学习',
+    achievement: '成就',
+    social: '社交',
+    warning: '警告',
+    info: '信息'
   }
+  return labels[type] || '未知'
 }
 
-// 模拟定时通知
-const setupNotificationTimer = () => {
-  // 每分钟检查一次是否需要发送提醒
-  const timer = setInterval(() => {
-    const now = dayjs()
-    const reminderTime = notificationSettings.reminderTime
-    
-    if (
-      now.hour() === reminderTime.hour() && 
-      now.minute() === reminderTime.minute() &&
-      notificationSettings.reminder
-    ) {
-      addNotification({
-        type: 'reminder',
-        title: '⏰ 学习时间到了',
-        message: '该开始今天的英语学习了，坚持就是胜利！',
-        actionUrl: '/games'
-      })
-    }
-  }, 60000) // 每分钟检查一次
+const formatTime = (timestamp: string): string => {
+  const now = new Date()
+  const time = new Date(timestamp)
+  const diff = now.getTime() - time.getTime()
   
-  return timer
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 7) return `${days}天前`
+  
+  return time.toLocaleDateString('zh-CN')
 }
-
-// 暴露方法给父组件使用
-defineExpose({
-  addNotification,
-  showToast
-})
 
 // 生命周期
-let notificationTimer: NodeJS.Timeout | null = null
-
 onMounted(() => {
-  notificationTimer = setupNotificationTimer()
+  // 从本地存储加载通知设置
+  const savedSettings = localStorage.getItem('notificationSettings')
+  if (savedSettings) {
+    settings.value = { ...settings.value, ...JSON.parse(savedSettings) }
+  }
   
-  // 模拟一些通知
-  setTimeout(() => {
-    addNotification({
-      type: 'achievement',
-      title: '🎉 欢迎回来！',
-      message: '继续您的英语学习之旅吧！',
-      achievementName: '回归学习',
-      points: 50,
-      actionUrl: '/games'
-    })
-  }, 2000)
-})
-
-onUnmounted(() => {
-  if (notificationTimer) {
-    clearInterval(notificationTimer)
+  // 请求浏览器通知权限
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission()
   }
 })
 
-// 点击外部关闭指令
-const vClickOutside = {
-  mounted(el: HTMLElement, binding: any) {
-    el.clickOutsideEvent = (event: Event) => {
-      if (!(el === event.target || el.contains(event.target as Node))) {
-        binding.value()
-      }
+// 暴露给父组件的方法
+defineExpose({
+  addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+    const newNotification: Notification = {
+      ...notification,
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString()
     }
-    document.addEventListener('click', el.clickOutsideEvent)
-  },
-  unmounted(el: HTMLElement) {
-    document.removeEventListener('click', el.clickOutsideEvent)
+    notifications.value.unshift(newNotification)
+    
+    // 显示浏览器通知
+    if (settings.value.methods.includes('browser') && 
+        'Notification' in window && 
+        Notification.permission === 'granted') {
+      new Notification(notification.title, {
+        body: notification.message,
+        icon: '/favicon.ico'
+      })
+    }
   }
-}
+})
 </script>
 
-<style lang="less" scoped>
+<style scoped lang="less">
 .notification-center {
-  position: relative;
+  .notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid #e8e8e8;
+    background: #fafafa;
 
-  .notification-active {
-    background: #e6f7ff !important;
-    color: #1890ff !important;
-  }
-
-  .notification-panel {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    width: 400px;
-    max-height: 600px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
-    border: 1px solid #f0f0f0;
-    z-index: 1000;
-    overflow: hidden;
-
-    .panel-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid #f0f0f0;
+    .header-left {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      gap: 8px;
 
-      .panel-title {
+      h3 {
+        margin: 0;
         font-size: 16px;
         font-weight: 600;
-        color: #262626;
-        margin: 0;
-      }
-
-      .header-actions {
-        display: flex;
-        gap: 8px;
       }
     }
+  }
 
-    .notification-filters {
-      padding: 12px 20px;
+  .notification-list {
+    max-height: 600px;
+    overflow-y: auto;
+
+    .notification-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
       border-bottom: 1px solid #f0f0f0;
-    }
+      cursor: pointer;
+      transition: all 0.3s;
 
-    .notification-list {
-      max-height: 400px;
-      overflow-y: auto;
+      &:hover {
+        background-color: #f8f9fa;
+      }
 
-      .notification-item {
+      &.unread {
+        background-color: #f6ffed;
+        border-left: 3px solid #52c41a;
+
+        .notification-title {
+          font-weight: 600;
+        }
+      }
+
+      &.priority-high {
+        border-left: 3px solid #ff4d4f;
+      }
+
+      .notification-icon {
+        flex-shrink: 0;
         display: flex;
-        align-items: flex-start;
-        padding: 16px 20px;
-        border-bottom: 1px solid #f5f5f5;
-        cursor: pointer;
-        transition: all 0.2s ease;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #f5f5f5;
+      }
 
-        &:hover {
-          background: #fafafa;
-        }
+      .notification-content {
+        flex: 1;
+        min-width: 0;
 
-        &.unread {
-          background: #f6ffed;
-          border-left: 3px solid #52c41a;
-        }
-
-        .notification-icon {
-          width: 32px;
-          height: 32px;
-          border-radius: 6px;
+        .notification-title {
           display: flex;
           align-items: center;
-          justify-content: center;
-          margin-right: 12px;
-          flex-shrink: 0;
+          gap: 8px;
+          margin-bottom: 4px;
+          font-size: 14px;
+          line-height: 1.4;
         }
 
-        .notification-content {
-          flex: 1;
-          min-width: 0;
-
-          .notification-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 4px;
-
-            .notification-title {
-              font-size: 14px;
-              font-weight: 500;
-              color: #262626;
-              margin: 0;
-              line-height: 1.4;
-            }
-
-            .notification-time {
-              font-size: 12px;
-              color: #8c8c8c;
-              flex-shrink: 0;
-              margin-left: 8px;
-            }
-          }
-
-          .notification-message {
-            font-size: 13px;
-            color: #595959;
-            line-height: 1.4;
-            margin: 0 0 8px 0;
-          }
-
-          .achievement-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 8px;
-
-            .achievement-badge {
-              display: flex;
-              align-items: center;
-              background: #fff7e6;
-              color: #fa8c16;
-              padding: 2px 8px;
-              border-radius: 4px;
-              font-size: 12px;
-              font-weight: 500;
-            }
-
-            .achievement-points {
-              font-size: 12px;
-              font-weight: 600;
-              color: #52c41a;
-            }
-          }
-
-          .reminder-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-          }
+        .notification-message {
+          margin-bottom: 8px;
+          font-size: 13px;
+          color: #666;
+          line-height: 1.4;
         }
 
-        .notification-actions {
+        .notification-meta {
           display: flex;
-          flex-direction: column;
-          gap: 4px;
-          margin-left: 8px;
-          opacity: 0;
-          transition: opacity 0.2s ease;
-        }
+          align-items: center;
+          gap: 8px;
 
-        &:hover .notification-actions {
-          opacity: 1;
+          .notification-time {
+            font-size: 12px;
+            color: #999;
+          }
         }
       }
 
-      .empty-notifications {
-        padding: 40px 20px;
-        text-align: center;
+      .notification-actions {
+        flex-shrink: 0;
+      }
+    }
+  }
 
-        .empty-icon {
-          color: #d9d9d9;
-          margin-bottom: 12px;
+  .notification-detail {
+    .detail-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 24px;
+
+      .detail-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background-color: #f5f5f5;
+      }
+
+      .detail-info {
+        flex: 1;
+
+        h3 {
+          margin: 0 0 8px 0;
+          font-size: 18px;
+          font-weight: 600;
         }
 
-        .empty-text {
-          font-size: 14px;
-          color: #8c8c8c;
-          margin: 0;
+        .detail-meta {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+
+          .detail-time {
+            font-size: 13px;
+            color: #666;
+          }
         }
       }
     }
 
-    .panel-footer {
-      padding: 12px 20px;
-      border-top: 1px solid #f0f0f0;
-      text-align: center;
+    .detail-content {
+      margin-bottom: 24px;
+
+      p {
+        margin-bottom: 16px;
+        line-height: 1.6;
+        color: #333;
+      }
+
+      .detail-extra {
+        h4 {
+          margin: 16px 0 8px 0;
+          font-size: 14px;
+          font-weight: 600;
+          color: #333;
+        }
+
+        :deep(div) {
+          font-size: 13px;
+          line-height: 1.6;
+          color: #666;
+        }
+      }
+    }
+
+    .detail-actions {
+      text-align: right;
     }
   }
 
   .notification-settings {
-    .setting-group {
-      margin-bottom: 24px;
-
-      .group-title {
-        font-size: 14px;
-        font-weight: 500;
-        color: #262626;
-        margin-bottom: 12px;
-      }
-
-      .setting-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 0;
-        border-bottom: 1px solid #f5f5f5;
-
-        &:last-child {
-          border-bottom: none;
-        }
-
-        .setting-info {
-          flex: 1;
-
-          .setting-name {
-            display: block;
-            font-size: 14px;
-            color: #262626;
-            margin-bottom: 2px;
-          }
-
-          .setting-description {
-            font-size: 12px;
-            color: #8c8c8c;
-          }
-        }
-      }
+    :deep(.ant-form-item) {
+      margin-bottom: 20px;
     }
-  }
 
-  .toast-container {
-    position: fixed;
-    top: 80px;
-    right: 20px;
-    z-index: 2000;
-    pointer-events: none;
-
-    .toast-notification {
+    :deep(.ant-checkbox-group) {
       display: flex;
-      align-items: flex-start;
-      background: white;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-      border-left: 4px solid #1890ff;
-      max-width: 350px;
-      pointer-events: auto;
-
-      &.toast-achievement {
-        border-left-color: #fa8c16;
-      }
-
-      &.toast-reminder {
-        border-left-color: #1890ff;
-      }
-
-      &.toast-progress {
-        border-left-color: #52c41a;
-      }
-
-      &.toast-system {
-        border-left-color: #595959;
-      }
-
-      .toast-icon {
-        margin-right: 12px;
-        margin-top: 2px;
-        flex-shrink: 0;
-      }
-
-      .toast-content {
-        flex: 1;
-        min-width: 0;
-
-        .toast-title {
-          font-size: 14px;
-          font-weight: 500;
-          color: #262626;
-          margin: 0 0 4px 0;
-        }
-
-        .toast-message {
-          font-size: 13px;
-          color: #595959;
-          line-height: 1.4;
-          margin: 0;
-        }
-      }
-
-      .toast-close {
-        margin-left: 8px;
-        flex-shrink: 0;
-      }
+      flex-direction: column;
+      gap: 8px;
     }
   }
 }
 
-// 动画效果
-.toast-enter-active,
-.toast-leave-active {
-  transition: all 0.3s ease;
-}
-
-.toast-enter-from {
-  opacity: 0;
-  transform: translateX(100%);
-}
-
-.toast-leave-to {
-  opacity: 0;
-  transform: translateX(100%);
-}
-
+// 响应式设计
 @media (max-width: 768px) {
   .notification-center {
-    .notification-panel {
-      width: 320px;
-      right: -20px;
+    .notification-header {
+      flex-direction: column;
+      gap: 12px;
+      align-items: stretch;
+
+      .header-right {
+        :deep(.ant-space) {
+          justify-content: center;
+        }
+      }
     }
 
-    .toast-container {
-      right: 10px;
-      left: 10px;
+    .notification-item {
+      .notification-content {
+        .notification-meta {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+        }
+      }
+    }
 
-      .toast-notification {
-        max-width: none;
+    .detail-header {
+      flex-direction: column;
+      text-align: center;
+
+      .detail-info {
+        text-align: center;
+
+        .detail-meta {
+          justify-content: center;
+        }
       }
     }
   }

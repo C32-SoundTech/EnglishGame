@@ -269,7 +269,7 @@ const activityData = ref(() => {
     })
   }
   return data
-}())
+})()
 
 // 知识点掌握度数据
 const knowledgeData = ref([
@@ -309,7 +309,7 @@ const efficiencyAnalysisData = ref(() => {
     })
   }
   return data.reverse()
-}())
+})()
 
 // 智能学习分析洞察
 const analysisInsights = ref([

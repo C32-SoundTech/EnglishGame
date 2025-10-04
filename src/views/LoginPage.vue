@@ -23,8 +23,11 @@
             v-model:value="formData.email"
             size="large"
             placeholder="请输入邮箱"
-            :prefix="Mail"
-          />
+          >
+            <template #prefix>
+              <Mail class="w-4 h-4 text-gray-400" />
+            </template>
+          </a-input>
         </a-form-item>
 
         <a-form-item name="password" label="密码">
@@ -32,8 +35,11 @@
             v-model:value="formData.password"
             size="large"
             placeholder="请输入密码"
-            :prefix="Lock"
-          />
+          >
+            <template #prefix>
+              <Lock class="w-4 h-4 text-gray-400" />
+            </template>
+          </a-input-password>
         </a-form-item>
 
         <a-form-item>
@@ -241,10 +247,43 @@ const goToRegister = () => {
     border-radius: 8px;
     border: 2px solid #e5e7eb;
     transition: all 0.3s;
+    padding: 8px 12px;
+    
+    .ant-input-prefix {
+      margin-right: 8px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .ant-input {
+      font-size: 14px;
+      line-height: 1.5;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      background: transparent;
+      
+      &::placeholder {
+        color: #9ca3af;
+        font-size: 14px;
+      }
+    }
 
-    &:hover, &:focus {
+    &:hover, &:focus, &.ant-input-affix-wrapper-focused {
       border-color: #3b82f6;
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+  }
+  
+  :deep(.ant-input-password) {
+    .ant-input {
+      font-size: 14px;
+      line-height: 1.5;
+      
+      &::placeholder {
+        color: #9ca3af;
+        font-size: 14px;
+      }
     }
   }
 }
@@ -364,6 +403,30 @@ const goToRegister = () => {
 
   .subtitle {
     font-size: 14px;
+  }
+  
+  .login-form {
+    :deep(.ant-input-affix-wrapper) {
+      padding: 6px 10px;
+      
+      .ant-input {
+        font-size: 13px;
+        
+        &::placeholder {
+          font-size: 13px;
+        }
+      }
+    }
+    
+    :deep(.ant-input-password) {
+      .ant-input {
+        font-size: 13px;
+        
+        &::placeholder {
+          font-size: 13px;
+        }
+      }
+    }
   }
 }
 </style>

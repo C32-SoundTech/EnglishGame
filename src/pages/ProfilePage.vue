@@ -519,6 +519,41 @@
         <p class="warning-text">此操作不可撤销，请谨慎操作。</p>
       </div>
     </a-modal>
+
+    <!-- 奖励动画组件 -->
+    <RewardAnimation
+      ref="rewardAnimationRef"
+      :score-gain="rewardPoints"
+      :bonus="bonusPoints"
+      :streak-count="streakCount"
+      :earned-badge="earnedBadge"
+      :old-level="oldLevel"
+      :new-level="newLevel"
+      :is-perfect="isPerfect"
+      @animation-complete="onRewardAnimationComplete"
+    />
+
+    <!-- 音效组件 -->
+    <SoundEffects
+      ref="soundEffectsRef"
+      :enabled="soundEnabled"
+      :volume="soundVolume"
+    />
+
+    <!-- 浮动元素 -->
+    <FloatingElements
+      :show-bubbles="false"
+      :show-stars="true"
+      :show-hearts="false"
+      :show-rainbows="false"
+      :show-clouds="false"
+      :show-flowers="false"
+      :show-notes="false"
+      :show-gifts="true"
+      :count="5"
+      :duration="20000"
+      :intensity="0.2"
+    />
   </div>
 </template>
 
@@ -527,6 +562,10 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import dayjs, { Dayjs } from 'dayjs'
+import { storage } from '@/utils/storage'
+import RewardAnimation from '@/components/RewardAnimation.vue'
+import SoundEffects from '@/components/animations/SoundEffects.vue'
+import FloatingElements from '@/components/animations/FloatingElements.vue'
 import {
   User,
   Camera,
@@ -556,6 +595,19 @@ const activeTab = ref('basic')
 const saving = ref(false)
 const showAddGoal = ref(false)
 const showDeleteAccount = ref(false)
+
+// 动画和音效相关数据
+const rewardAnimationRef = ref()
+const soundEffectsRef = ref()
+const rewardPoints = ref(0)
+const bonusPoints = ref(0)
+const streakCount = ref(0)
+const earnedBadge = ref(null)
+const oldLevel = ref(1)
+const newLevel = ref(1)
+const isPerfect = ref(false)
+const soundEnabled = ref(true)
+const soundVolume = ref(0.7)
 
 // 用户资料数据
 const userProfile = reactive({
@@ -708,6 +760,45 @@ const getGoalTypeText = (type: string) => {
   }
 }
 
+// 动画和音效方法
+const playSound = (soundType: string) => {
+  if (soundEffectsRef.value && soundEnabled.value) {
+    soundEffectsRef.value.playSound(soundType)
+  }
+}
+
+const showRewardAnimation = (type: string, data: any = {}) => {
+  if (rewardAnimationRef.value) {
+    switch (type) {
+      case 'points':
+        rewardPoints.value = data.points || 0
+        rewardAnimationRef.value.showScorePopup()
+        break
+      case 'streak':
+        streakCount.value = data.count || 0
+        rewardAnimationRef.value.showStreakPopup()
+        break
+      case 'badge':
+        earnedBadge.value = data.badge || null
+        rewardAnimationRef.value.showBadgeEarned()
+        break
+      case 'levelup':
+        oldLevel.value = data.oldLevel || 1
+        newLevel.value = data.newLevel || 1
+        rewardAnimationRef.value.showLevelUp()
+        break
+    }
+  }
+}
+
+const onRewardAnimationComplete = () => {
+  rewardPoints.value = 0
+  bonusPoints.value = 0
+  streakCount.value = 0
+  earnedBadge.value = null
+  isPerfect.value = false
+}
+
 // 方法
 const beforeAvatarUpload = (file: File) => {
   const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png'
@@ -735,12 +826,16 @@ const handleAvatarChange = (info: any) => {
 
 const updateBasicInfo = () => {
   saving.value = true
+  playSound('click')
+  
   // 模拟API调用
   setTimeout(() => {
     Object.assign(userProfile, {
       username: basicForm.username
     })
     saving.value = false
+    playSound('success')
+    showRewardAnimation('points', { points: 10 })
     message.success('基本信息更新成功!')
   }, 1000)
 }
@@ -769,10 +864,13 @@ const resetPreferences = () => {
 
 const addGoal = () => {
   if (!goalForm.title || !goalForm.type || !goalForm.target || !goalForm.unit || !goalForm.deadline) {
+    playSound('error')
     message.error('请填写完整的目标信息')
     return
   }
 
+  playSound('click')
+  
   const newGoal = {
     id: Date.now(),
     title: goalForm.title,
@@ -787,6 +885,9 @@ const addGoal = () => {
   learningGoals.value.push(newGoal)
   showAddGoal.value = false
   resetGoalForm()
+  
+  playSound('success')
+  showRewardAnimation('badge', { badge: { name: '目标设定者', icon: 'Target' } })
   message.success('学习目标添加成功!')
 }
 

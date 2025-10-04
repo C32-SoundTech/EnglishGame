@@ -27,54 +27,8 @@
       </a-row>
     </div>
 
-    <!-- 关卡进度 -->
-    <div class="level-progress">
-      <h3 class="section-title">
-        <Trophy class="w-5 h-5 mr-2" />
-        关卡进度
-      </h3>
-      <div class="level-map">
-        <div
-          v-for="level in levels"
-          :key="level.id"
-          class="level-item"
-          :class="{
-            'completed': level.status === 'completed',
-            'current': level.status === 'current',
-            'locked': level.status === 'locked'
-          }"
-          @click="handleLevelClick(level)"
-        >
-          <div class="level-icon">
-            <Trophy v-if="level.status === 'completed'" class="w-6 h-6" />
-            <Play v-else-if="level.status === 'current'" class="w-6 h-6" />
-            <Lock v-else class="w-6 h-6" />
-          </div>
-          <div class="level-info">
-            <div class="level-name">{{ level.name }}</div>
-            <div class="level-progress-bar">
-              <a-progress
-                :percent="level.progress"
-                :stroke-color="getLevelColor(level.status)"
-                :show-info="false"
-                size="small"
-              />
-            </div>
-            <div class="level-stats">
-              <span class="level-score">{{ level.score }}/{{ level.maxScore }}</span>
-              <div class="level-stars">
-                <Star
-                  v-for="i in 3"
-                  :key="i"
-                  class="w-3 h-3"
-                  :class="{ 'filled': i <= level.stars }"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 关卡系统 -->
+    <LevelSystem ref="levelSystemRef" />
 
     <!-- 技能树 -->
     <div class="skill-tree">
@@ -128,39 +82,9 @@
       </div>
     </div>
 
-    <!-- 成就系统 -->
-    <div class="achievement-system">
-      <h3 class="section-title">
-        <Award class="w-5 h-5 mr-2" />
-        成就徽章
-      </h3>
-      <div class="achievement-grid">
-        <div
-          v-for="achievement in achievements"
-          :key="achievement.id"
-          class="achievement-card"
-          :class="{ 'unlocked': achievement.unlocked }"
-        >
-          <div class="achievement-icon" :style="{ backgroundColor: achievement.color + '20', color: achievement.color }">
-            <component :is="achievement.icon" class="w-8 h-8" />
-          </div>
-          <div class="achievement-info">
-            <h4 class="achievement-name">{{ achievement.name }}</h4>
-            <p class="achievement-desc">{{ achievement.description }}</p>
-            <div class="achievement-progress" v-if="!achievement.unlocked">
-              <a-progress
-                :percent="achievement.progress"
-                :stroke-color="achievement.color"
-                size="small"
-              />
-              <span class="progress-text">{{ achievement.current }}/{{ achievement.target }}</span>
-            </div>
-            <div class="achievement-date" v-else>
-              获得时间：{{ formatDate(achievement.unlockedAt) }}
-            </div>
-          </div>
-        </div>
-      </div>
+    <!-- 成就徽章系统 -->
+    <div class="badge-section">
+      <BadgeSystem />
     </div>
 
     <!-- 学习目标 -->
@@ -199,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   TrendingUp,
@@ -221,14 +145,18 @@ import {
   Users,
   Gamepad2
 } from 'lucide-vue-next'
+import LevelSystem from '@/components/LevelSystem.vue'
+import BadgeSystem from '@/components/BadgeSystem.vue'
 
-// 进度统计数据
+// 响应式数据
+const levelSystemRef = ref(null)
+
 const progressStats = ref([
   {
-    key: 'totalLevels',
+    key: 'completedLevels',
     label: '完成关卡',
-    value: '15/30',
-    percent: 50,
+    value: '5/12',
+    percent: 42,
     icon: Trophy,
     color: '#52c41a'
   },
@@ -360,71 +288,8 @@ const skillBranches = ref([
   }
 ])
 
-// 成就数据
-const achievements = ref([
-  {
-    id: 1,
-    name: '初学者',
-    description: '完成第一个学习任务',
-    icon: Trophy,
-    color: '#52c41a',
-    unlocked: true,
-    unlockedAt: new Date('2024-01-15')
-  },
-  {
-    id: 2,
-    name: '词汇达人',
-    description: '学会100个单词',
-    icon: BookOpen,
-    color: '#1890ff',
-    unlocked: true,
-    unlockedAt: new Date('2024-01-18')
-  },
-  {
-    id: 3,
-    name: '连续学习者',
-    description: '连续学习7天',
-    icon: Calendar,
-    color: '#fa8c16',
-    unlocked: false,
-    progress: 60,
-    current: 4,
-    target: 7
-  },
-  {
-    id: 4,
-    name: '游戏高手',
-    description: '在游戏中获得满分',
-    icon: Gamepad2,
-    color: '#722ed1',
-    unlocked: false,
-    progress: 80,
-    current: 4,
-    target: 5
-  },
-  {
-    id: 5,
-    name: '听力专家',
-    description: '完成所有听力训练',
-    icon: Headphones,
-    color: '#52c41a',
-    unlocked: false,
-    progress: 30,
-    current: 3,
-    target: 10
-  },
-  {
-    id: 6,
-    name: '社交达人',
-    description: '与朋友分享学习成果',
-    icon: Users,
-    color: '#1890ff',
-    unlocked: false,
-    progress: 0,
-    current: 0,
-    target: 3
-  }
-])
+// 徽章系统引用
+const badgeSystemRef = ref(null)
 
 // 学习目标数据
 const learningGoals = ref([
@@ -455,12 +320,9 @@ const learningGoals = ref([
 ])
 
 // 工具函数
-const getLevelColor = (status: string) => {
-  switch (status) {
-    case 'completed': return '#52c41a'
-    case 'current': return '#1890ff'
-    case 'locked': return '#d9d9d9'
-    default: return '#d9d9d9'
+const updateLevelProgress = (levelId: number, score: number) => {
+  if (levelSystemRef.value) {
+    levelSystemRef.value.updateLevelProgress(levelId, score)
   }
 }
 
@@ -473,17 +335,6 @@ const formatDate = (date: Date) => {
 }
 
 // 事件处理
-const handleLevelClick = (level: any) => {
-  if (level.status === 'locked') {
-    message.warning('请先完成前面的关卡')
-    return
-  }
-  if (level.status === 'completed') {
-    message.info(`关卡 ${level.name} 已完成，得分：${level.score}`)
-    return
-  }
-  message.success(`开始关卡：${level.name}`)
-}
 
 const handleSkillClick = (skill: any) => {
   if (!skill.unlocked) {
@@ -496,6 +347,24 @@ const handleSkillClick = (skill: any) => {
     message.info(`技能 ${skill.name} 已掌握，等级：${skill.level}`)
   }
 }
+
+// 暴露给父组件的方法
+const refreshData = () => {
+  // 刷新数据逻辑
+  console.log('刷新学习进度数据')
+}
+
+const updateBadgeProgress = (badgeId: string, progress: any) => {
+  if (badgeSystemRef.value) {
+    badgeSystemRef.value.updateBadgeProgress(badgeId, progress)
+  }
+}
+
+defineExpose({
+  refreshData,
+  updateLevelProgress,
+  updateBadgeProgress
+})
 </script>
 
 <style scoped lang="less">

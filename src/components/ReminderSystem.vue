@@ -1,948 +1,1162 @@
 <template>
   <div class="reminder-system">
-    <!-- 提醒设置卡片 -->
-    <a-card title="学习提醒设置" class="reminder-card">
-      <template #extra>
-        <a-switch 
-          v-model:checked="reminderEnabled" 
-          @change="toggleReminder"
-          checked-children="开启"
-          un-checked-children="关闭"
-        />
-      </template>
-
-      <div class="reminder-content" :class="{ disabled: !reminderEnabled }">
-        <!-- 每日提醒 -->
-        <div class="reminder-section">
-          <div class="section-header">
-            <Clock class="w-5 h-5 text-blue-500" />
-            <h3 class="section-title">每日学习提醒</h3>
-          </div>
-          
-          <div class="reminder-options">
-            <div class="option-item">
-              <span class="option-label">提醒时间</span>
-              <a-time-picker 
-                v-model:value="dailyReminderTime"
-                format="HH:mm"
-                placeholder="选择时间"
-                :disabled="!reminderEnabled"
-                @change="updateDailyReminder"
-              />
-            </div>
-            
-            <div class="option-item">
-              <span class="option-label">重复周期</span>
-              <a-checkbox-group 
-                v-model:value="reminderDays" 
-                :disabled="!reminderEnabled"
-                @change="updateReminderDays"
-              >
-                <a-checkbox 
-                  v-for="day in weekDays" 
-                  :key="day.value" 
-                  :value="day.value"
-                  class="day-checkbox"
-                >
-                  {{ day.label }}
-                </a-checkbox>
-              </a-checkbox-group>
-            </div>
-            
-            <div class="option-item">
-              <span class="option-label">提醒内容</span>
-              <a-select 
-                v-model:value="reminderMessage" 
-                style="width: 100%"
-                :disabled="!reminderEnabled"
-                @change="updateReminderMessage"
-              >
-                <a-select-option 
-                  v-for="msg in reminderMessages" 
-                  :key="msg.value" 
-                  :value="msg.value"
-                >
-                  {{ msg.label }}
-                </a-select-option>
-              </a-select>
-            </div>
-          </div>
-        </div>
-
-        <!-- 目标提醒 -->
-        <div class="reminder-section">
-          <div class="section-header">
-            <Target class="w-5 h-5 text-green-500" />
-            <h3 class="section-title">目标提醒</h3>
-          </div>
-          
-          <div class="reminder-options">
-            <div class="option-item">
-              <div class="option-info">
-                <span class="option-label">目标截止提醒</span>
-                <span class="option-description">在目标截止前提醒</span>
-              </div>
-              <a-switch 
-                v-model:checked="goalReminderEnabled" 
-                :disabled="!reminderEnabled"
-                @change="updateGoalReminder"
-              />
-            </div>
-            
-            <div class="option-item" v-if="goalReminderEnabled">
-              <span class="option-label">提前时间</span>
-              <a-select 
-                v-model:value="goalReminderAdvance" 
-                style="width: 120px"
-                :disabled="!reminderEnabled"
-              >
-                <a-select-option value="1">1天前</a-select-option>
-                <a-select-option value="3">3天前</a-select-option>
-                <a-select-option value="7">7天前</a-select-option>
-              </a-select>
-            </div>
-            
-            <div class="option-item">
-              <div class="option-info">
-                <span class="option-label">进度提醒</span>
-                <span class="option-description">学习进度更新时提醒</span>
-              </div>
-              <a-switch 
-                v-model:checked="progressReminderEnabled" 
-                :disabled="!reminderEnabled"
-                @change="updateProgressReminder"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- 成就提醒 -->
-        <div class="reminder-section">
-          <div class="section-header">
-            <Trophy class="w-5 h-5 text-yellow-500" />
-            <h3 class="section-title">成就提醒</h3>
-          </div>
-          
-          <div class="reminder-options">
-            <div class="option-item">
-              <div class="option-info">
-                <span class="option-label">新成就通知</span>
-                <span class="option-description">获得新成就时立即通知</span>
-              </div>
-              <a-switch 
-                v-model:checked="achievementReminderEnabled" 
-                :disabled="!reminderEnabled"
-                @change="updateAchievementReminder"
-              />
-            </div>
-            
-            <div class="option-item">
-              <div class="option-info">
-                <span class="option-label">连续学习提醒</span>
-                <span class="option-description">连续学习天数里程碑提醒</span>
-              </div>
-              <a-switch 
-                v-model:checked="streakReminderEnabled" 
-                :disabled="!reminderEnabled"
-                @change="updateStreakReminder"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- 智能提醒 -->
-        <div class="reminder-section">
-          <div class="section-header">
-            <Brain class="w-5 h-5 text-purple-500" />
-            <h3 class="section-title">智能提醒</h3>
-          </div>
-          
-          <div class="reminder-options">
-            <div class="option-item">
-              <div class="option-info">
-                <span class="option-label">复习提醒</span>
-                <span class="option-description">根据遗忘曲线智能提醒复习</span>
-              </div>
-              <a-switch 
-                v-model:checked="reviewReminderEnabled" 
-                :disabled="!reminderEnabled"
-                @change="updateReviewReminder"
-              />
-            </div>
-            
-            <div class="option-item">
-              <div class="option-info">
-                <span class="option-label">薄弱环节提醒</span>
-                <span class="option-description">针对薄弱知识点的练习提醒</span>
-              </div>
-              <a-switch 
-                v-model:checked="weaknessReminderEnabled" 
-                :disabled="!reminderEnabled"
-                @change="updateWeaknessReminder"
-              />
-            </div>
-            
-            <div class="option-item">
-              <div class="option-info">
-                <span class="option-label">最佳学习时间</span>
-                <span class="option-description">根据学习效果推荐最佳时间</span>
-              </div>
-              <a-switch 
-                v-model:checked="optimalTimeReminderEnabled" 
-                :disabled="!reminderEnabled"
-                @change="updateOptimalTimeReminder"
-              />
-            </div>
-          </div>
-        </div>
+    <!-- 提醒系统头部 -->
+    <div class="reminder-header">
+      <div class="header-left">
+        <Bell class="w-5 h-5" />
+        <h3>学习提醒</h3>
       </div>
-    </a-card>
+      <div class="header-right">
+        <a-space>
+          <a-button @click="showSettings = true">
+            <Settings class="w-4 h-4" />
+            设置
+          </a-button>
+          <a-button type="primary" @click="showCreateModal = true">
+            <Plus class="w-4 h-4" />
+            新建提醒
+          </a-button>
+        </a-space>
+      </div>
+    </div>
 
-    <!-- 即将到来的提醒 -->
-    <a-card title="即将到来的提醒" class="upcoming-reminders-card">
-      <template #extra>
-        <a-button type="link" @click="refreshUpcomingReminders">
-          <RotateCcw class="w-4 h-4 mr-1" />
-          刷新
-        </a-button>
-      </template>
+    <!-- 快速设置 -->
+    <div class="quick-settings">
+      <a-card title="快速设置" size="small">
+        <a-row :gutter="16">
+          <a-col :span="8">
+            <a-card class="quick-card" @click="createQuickReminder('daily')">
+              <div class="quick-content">
+                <Calendar class="w-6 h-6 text-blue-500" />
+                <div class="quick-text">
+                  <div class="quick-title">每日学习</div>
+                  <div class="quick-desc">每天固定时间提醒</div>
+                </div>
+              </div>
+            </a-card>
+          </a-col>
+          
+          <a-col :span="8">
+            <a-card class="quick-card" @click="createQuickReminder('break')">
+              <div class="quick-content">
+                <Coffee class="w-6 h-6 text-orange-500" />
+                <div class="quick-text">
+                  <div class="quick-title">休息提醒</div>
+                  <div class="quick-desc">学习间隔休息提醒</div>
+                </div>
+              </div>
+            </a-card>
+          </a-col>
+          
+          <a-col :span="8">
+            <a-card class="quick-card" @click="createQuickReminder('goal')">
+              <div class="quick-content">
+                <Target class="w-6 h-6 text-green-500" />
+                <div class="quick-text">
+                  <div class="quick-title">目标提醒</div>
+                  <div class="quick-desc">学习目标进度提醒</div>
+                </div>
+              </div>
+            </a-card>
+          </a-col>
+        </a-row>
+      </a-card>
+    </div>
 
-      <div class="upcoming-reminders">
-        <div 
-          v-for="reminder in upcomingReminders" 
-          :key="reminder.id"
-          class="reminder-item"
-          :class="`reminder-${reminder.type}`"
-        >
-          <div class="reminder-icon">
-            <component :is="getReminderIcon(reminder.type)" class="w-4 h-4" />
-          </div>
-          
-          <div class="reminder-info">
-            <h4 class="reminder-title">{{ reminder.title }}</h4>
-            <p class="reminder-description">{{ reminder.description }}</p>
-            <div class="reminder-time">
-              <Clock class="w-3 h-3 mr-1" />
-              {{ formatReminderTime(reminder.scheduledTime) }}
-            </div>
-          </div>
-          
-          <div class="reminder-actions">
-            <a-button 
-              size="small" 
-              @click="snoozeReminder(reminder.id)"
-              title="延迟提醒"
-            >
-              <Clock class="w-3 h-3" />
-            </a-button>
-            <a-button 
-              size="small" 
-              @click="cancelReminder(reminder.id)"
-              title="取消提醒"
-            >
-              <X class="w-3 h-3" />
-            </a-button>
-          </div>
-        </div>
+    <!-- 活跃提醒列表 -->
+    <div class="active-reminders">
+      <a-card title="活跃提醒" size="small">
+        <template #extra>
+          <a-switch 
+            v-model:checked="globalEnabled" 
+            checked-children="开启"
+            un-checked-children="关闭"
+            @change="toggleGlobalReminders"
+          />
+        </template>
         
-        <div v-if="upcomingReminders.length === 0" class="no-reminders">
-          <div class="no-reminders-icon">
-            <Bell class="w-12 h-12" />
+        <div class="reminder-list">
+          <a-empty v-if="activeReminders.length === 0" description="暂无活跃提醒" />
+          
+          <div 
+            v-for="reminder in activeReminders" 
+            :key="reminder.id"
+            class="reminder-item"
+          >
+            <div class="reminder-icon">
+              <component 
+                :is="getReminderIcon(reminder.type)" 
+                class="w-5 h-5"
+                :class="getReminderIconColor(reminder.type)"
+              />
+            </div>
+            
+            <div class="reminder-content">
+              <div class="reminder-title">{{ reminder.title }}</div>
+              <div class="reminder-desc">{{ reminder.description }}</div>
+              <div class="reminder-schedule">
+                <Clock class="w-3 h-3" />
+                {{ formatSchedule(reminder) }}
+              </div>
+            </div>
+            
+            <div class="reminder-status">
+              <a-tag :color="reminder.enabled ? 'success' : 'default'">
+                {{ reminder.enabled ? '已启用' : '已禁用' }}
+              </a-tag>
+            </div>
+            
+            <div class="reminder-actions">
+              <a-space>
+                <a-switch 
+                  v-model:checked="reminder.enabled" 
+                  size="small"
+                  @change="toggleReminder(reminder.id)"
+                />
+                <a-dropdown>
+                  <template #overlay>
+                    <a-menu @click="(e) => handleReminderAction(e, reminder)">
+                      <a-menu-item key="edit">编辑</a-menu-item>
+                      <a-menu-item key="test">测试提醒</a-menu-item>
+                      <a-menu-item key="duplicate">复制</a-menu-item>
+                      <a-menu-item key="delete" class="text-red-500">删除</a-menu-item>
+                    </a-menu>
+                  </template>
+                  <a-button type="text" size="small">
+                    <MoreVertical class="w-4 h-4" />
+                  </a-button>
+                </a-dropdown>
+              </a-space>
+            </div>
           </div>
-          <p class="no-reminders-text">暂无即将到来的提醒</p>
         </div>
-      </div>
-    </a-card>
+      </a-card>
+    </div>
 
     <!-- 提醒历史 -->
-    <a-card title="提醒历史" class="reminder-history-card">
-      <template #extra>
-        <a-button type="link" @click="clearReminderHistory">
-          清空历史
-        </a-button>
-      </template>
-
-      <div class="reminder-history">
-        <a-timeline>
-          <a-timeline-item 
-            v-for="history in reminderHistory" 
-            :key="history.id"
-            :color="getHistoryColor(history.status)"
-          >
-            <template #dot>
-              <component :is="getHistoryIcon(history.status)" class="w-4 h-4" />
-            </template>
-            
-            <div class="history-content">
-              <div class="history-header">
-                <span class="history-title">{{ history.title }}</span>
-                <span class="history-time">{{ formatHistoryTime(history.time) }}</span>
-              </div>
-              <p class="history-description">{{ history.description }}</p>
-              <div class="history-status" :class="`status-${history.status}`">
-                {{ getStatusText(history.status) }}
-              </div>
-            </div>
-          </a-timeline-item>
-        </a-timeline>
+    <div class="reminder-history">
+      <a-card title="最近提醒" size="small">
+        <template #extra>
+          <a-button size="small" @click="clearHistory">清空历史</a-button>
+        </template>
         
-        <div v-if="reminderHistory.length === 0" class="no-history">
-          <p class="no-history-text">暂无提醒历史</p>
+        <div class="history-list">
+          <div 
+            v-for="history in recentHistory" 
+            :key="history.id"
+            class="history-item"
+          >
+            <div class="history-time">{{ formatTime(history.timestamp) }}</div>
+            <div class="history-content">
+              <div class="history-title">{{ history.title }}</div>
+              <div class="history-action">{{ history.action }}</div>
+            </div>
+            <div class="history-status">
+              <a-tag :color="getHistoryStatusColor(history.status)">
+                {{ getHistoryStatusText(history.status) }}
+              </a-tag>
+            </div>
+          </div>
         </div>
-      </div>
-    </a-card>
-
-    <!-- 测试提醒按钮 -->
-    <div class="test-reminder" v-if="reminderEnabled">
-      <a-button type="dashed" @click="testReminder" :loading="testingReminder">
-        <Bell class="w-4 h-4 mr-2" />
-        测试提醒
-      </a-button>
+      </a-card>
     </div>
+
+    <!-- 创建/编辑提醒模态框 -->
+    <a-modal
+      v-model:open="showCreateModal"
+      :title="editingReminder ? '编辑提醒' : '创建提醒'"
+      @ok="handleSubmit"
+      @cancel="handleCancel"
+      width="600px"
+    >
+      <a-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        layout="vertical"
+      >
+        <a-form-item label="提醒标题" name="title">
+          <a-input v-model:value="formData.title" placeholder="请输入提醒标题" />
+        </a-form-item>
+        
+        <a-form-item label="提醒描述" name="description">
+          <a-textarea 
+            v-model:value="formData.description" 
+            placeholder="请输入提醒描述"
+            :rows="3"
+          />
+        </a-form-item>
+        
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="提醒类型" name="type">
+              <a-select v-model:value="formData.type" placeholder="选择提醒类型">
+                <a-select-option value="daily">每日学习</a-select-option>
+                <a-select-option value="break">休息提醒</a-select-option>
+                <a-select-option value="goal">目标提醒</a-select-option>
+                <a-select-option value="review">复习提醒</a-select-option>
+                <a-select-option value="custom">自定义</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          
+          <a-col :span="12">
+            <a-form-item label="提醒方式" name="method">
+              <a-select v-model:value="formData.method" placeholder="选择提醒方式">
+                <a-select-option value="notification">浏览器通知</a-select-option>
+                <a-select-option value="sound">声音提醒</a-select-option>
+                <a-select-option value="popup">弹窗提醒</a-select-option>
+                <a-select-option value="all">全部方式</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
+        
+        <a-form-item label="重复设置" name="repeat">
+          <a-radio-group v-model:value="formData.repeat">
+            <a-radio value="once">仅一次</a-radio>
+            <a-radio value="daily">每天</a-radio>
+            <a-radio value="weekly">每周</a-radio>
+            <a-radio value="custom">自定义</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        
+        <a-form-item label="提醒时间" name="time">
+          <a-time-picker 
+            v-model:value="formData.time" 
+            format="HH:mm"
+            style="width: 100%"
+            placeholder="选择提醒时间"
+          />
+        </a-form-item>
+        
+        <a-form-item label="星期设置" name="weekdays" v-if="formData.repeat === 'weekly'">
+          <a-checkbox-group v-model:value="formData.weekdays">
+            <a-checkbox value="1">周一</a-checkbox>
+            <a-checkbox value="2">周二</a-checkbox>
+            <a-checkbox value="3">周三</a-checkbox>
+            <a-checkbox value="4">周四</a-checkbox>
+            <a-checkbox value="5">周五</a-checkbox>
+            <a-checkbox value="6">周六</a-checkbox>
+            <a-checkbox value="0">周日</a-checkbox>
+          </a-checkbox-group>
+        </a-form-item>
+        
+        <a-form-item label="提醒音效">
+          <a-select v-model:value="formData.sound" placeholder="选择提醒音效">
+            <a-select-option value="default">默认</a-select-option>
+            <a-select-option value="bell">铃声</a-select-option>
+            <a-select-option value="chime">钟声</a-select-option>
+            <a-select-option value="ding">叮声</a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 提醒设置模态框 -->
+    <a-modal
+      v-model:open="showSettings"
+      title="提醒设置"
+      @ok="saveSettings"
+      width="500px"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="全局设置">
+          <a-space direction="vertical" style="width: 100%">
+            <a-checkbox v-model:checked="settings.browserNotification">
+              启用浏览器通知
+            </a-checkbox>
+            <a-checkbox v-model:checked="settings.soundEnabled">
+              启用声音提醒
+            </a-checkbox>
+            <a-checkbox v-model:checked="settings.popupEnabled">
+              启用弹窗提醒
+            </a-checkbox>
+          </a-space>
+        </a-form-item>
+        
+        <a-form-item label="免打扰时间">
+          <a-time-range-picker 
+            v-model:value="settings.quietHours" 
+            format="HH:mm"
+            placeholder="['开始时间', '结束时间']"
+          />
+        </a-form-item>
+        
+        <a-form-item label="提醒音量">
+          <a-slider 
+            v-model:value="settings.volume" 
+            :min="0" 
+            :max="100"
+            :tooltip-formatter="(value) => `${value}%`"
+          />
+        </a-form-item>
+        
+        <a-form-item label="提醒间隔（分钟）">
+          <a-input-number 
+            v-model:value="settings.snoozeInterval" 
+            :min="1" 
+            :max="60"
+            style="width: 100%"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { message } from 'ant-design-vue'
-import dayjs, { Dayjs } from 'dayjs'
+import type { FormInstance } from 'ant-design-vue'
+import dayjs, { type Dayjs } from 'dayjs'
 import {
-  Clock,
-  Target,
-  Trophy,
-  Brain,
   Bell,
-  RotateCcw,
-  X,
-  CheckCircle,
-  AlertCircle,
-  XCircle,
+  Settings,
+  Plus,
+  Calendar,
+  Coffee,
+  Target,
+  Clock,
+  MoreVertical,
   BookOpen,
-  Calendar
+  Award,
+  RefreshCw
 } from 'lucide-vue-next'
 
-// Props
-interface Props {
-  notificationCenter?: any
+interface Reminder {
+  id: string
+  title: string
+  description: string
+  type: 'daily' | 'break' | 'goal' | 'review' | 'custom'
+  method: 'notification' | 'sound' | 'popup' | 'all'
+  repeat: 'once' | 'daily' | 'weekly' | 'custom'
+  time: string
+  weekdays?: string[]
+  sound: string
+  enabled: boolean
+  createdAt: string
+  lastTriggered?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {})
+interface ReminderHistory {
+  id: string
+  reminderId: string
+  title: string
+  action: string
+  status: 'triggered' | 'dismissed' | 'snoozed'
+  timestamp: string
+}
+
+interface ReminderSettings {
+  browserNotification: boolean
+  soundEnabled: boolean
+  popupEnabled: boolean
+  quietHours: [Dayjs, Dayjs] | null
+  volume: number
+  snoozeInterval: number
+}
+
+interface ReminderFormData {
+  title: string
+  description: string
+  type: string
+  method: string
+  repeat: string
+  time: Dayjs | null
+  weekdays: string[]
+  sound: string
+}
 
 // 响应式数据
-const reminderEnabled = ref(true)
-const testingReminder = ref(false)
+const formRef = ref<FormInstance>()
+const showCreateModal = ref(false)
+const showSettings = ref(false)
+const editingReminder = ref<Reminder | null>(null)
+const globalEnabled = ref(true)
 
-// 每日提醒设置
-const dailyReminderTime = ref(dayjs('18:00', 'HH:mm'))
-const reminderDays = ref(['1', '2', '3', '4', '5', '6', '0']) // 周一到周日
-const reminderMessage = ref('default')
-
-// 各类提醒开关
-const goalReminderEnabled = ref(true)
-const goalReminderAdvance = ref('3')
-const progressReminderEnabled = ref(true)
-const achievementReminderEnabled = ref(true)
-const streakReminderEnabled = ref(true)
-const reviewReminderEnabled = ref(true)
-const weaknessReminderEnabled = ref(true)
-const optimalTimeReminderEnabled = ref(false)
-
-// 周几选项
-const weekDays = [
-  { label: '周一', value: '1' },
-  { label: '周二', value: '2' },
-  { label: '周三', value: '3' },
-  { label: '周四', value: '4' },
-  { label: '周五', value: '5' },
-  { label: '周六', value: '6' },
-  { label: '周日', value: '0' }
-]
-
-// 提醒消息选项
-const reminderMessages = [
-  { label: '该开始今天的英语学习了！', value: 'default' },
-  { label: '坚持学习，成就更好的自己！', value: 'motivational' },
-  { label: '每天进步一点点，英语水平大提升！', value: 'progress' },
-  { label: '学习时间到了，一起来挑战新知识吧！', value: 'challenge' },
-  { label: '温馨提醒：该复习今天的学习内容了！', value: 'review' }
-]
-
-// 即将到来的提醒
-const upcomingReminders = ref([
+// 提醒数据
+const reminders = ref<Reminder[]>([
   {
-    id: 1,
+    id: '1',
+    title: '每日英语学习',
+    description: '每天早上9点开始英语学习',
     type: 'daily',
-    title: '每日学习提醒',
-    description: '该开始今天的英语学习了！',
-    scheduledTime: dayjs().add(2, 'hour').toISOString()
+    method: 'all',
+    repeat: 'daily',
+    time: '09:00',
+    sound: 'bell',
+    enabled: true,
+    createdAt: new Date().toISOString()
   },
   {
-    id: 2,
-    type: 'goal',
-    title: '目标截止提醒',
-    description: '您的"每周练习口语5次"目标将在2天后到期',
-    scheduledTime: dayjs().add(2, 'day').toISOString()
+    id: '2',
+    title: '学习休息提醒',
+    description: '学习30分钟后休息10分钟',
+    type: 'break',
+    method: 'notification',
+    repeat: 'custom',
+    time: '10:30',
+    sound: 'chime',
+    enabled: true,
+    createdAt: new Date().toISOString()
   },
   {
-    id: 3,
+    id: '3',
+    title: '周末复习提醒',
+    description: '周末复习本周学习内容',
     type: 'review',
-    title: '复习提醒',
-    description: '该复习昨天学习的20个单词了',
-    scheduledTime: dayjs().add(30, 'minute').toISOString()
-  },
-  {
-    id: 4,
-    type: 'weakness',
-    title: '薄弱环节练习',
-    description: '建议加强语法练习，提升准确率',
-    scheduledTime: dayjs().add(1, 'day').toISOString()
+    method: 'popup',
+    repeat: 'weekly',
+    time: '14:00',
+    weekdays: ['6', '0'],
+    sound: 'ding',
+    enabled: false,
+    createdAt: new Date().toISOString()
   }
 ])
 
 // 提醒历史
-const reminderHistory = ref([
+const reminderHistory = ref<ReminderHistory[]>([
   {
-    id: 1,
-    title: '每日学习提醒',
-    description: '该开始今天的英语学习了！',
-    time: dayjs().subtract(1, 'hour').toISOString(),
-    status: 'completed'
+    id: '1',
+    reminderId: '1',
+    title: '每日英语学习',
+    action: '开始学习',
+    status: 'triggered',
+    timestamp: new Date(Date.now() - 3600000).toISOString()
   },
   {
-    id: 2,
-    title: '成就通知',
-    description: '恭喜获得"连续学习7天"成就！',
-    time: dayjs().subtract(2, 'hour').toISOString(),
-    status: 'completed'
-  },
-  {
-    id: 3,
-    title: '复习提醒',
-    description: '该复习昨天学习的单词了',
-    time: dayjs().subtract(1, 'day').toISOString(),
-    status: 'snoozed'
-  },
-  {
-    id: 4,
-    title: '目标提醒',
-    description: '本周学习目标即将到期',
-    time: dayjs().subtract(2, 'day').toISOString(),
-    status: 'cancelled'
+    id: '2',
+    reminderId: '2',
+    title: '学习休息提醒',
+    action: '休息一下',
+    status: 'dismissed',
+    timestamp: new Date(Date.now() - 7200000).toISOString()
   }
 ])
 
+// 提醒设置
+const settings = ref<ReminderSettings>({
+  browserNotification: true,
+  soundEnabled: true,
+  popupEnabled: false,
+  quietHours: null,
+  volume: 70,
+  snoozeInterval: 5
+})
+
+// 表单数据
+const formData = reactive<ReminderFormData>({
+  title: '',
+  description: '',
+  type: 'daily',
+  method: 'notification',
+  repeat: 'daily',
+  time: null,
+  weekdays: [],
+  sound: 'default'
+})
+
+// 表单验证规则
+const formRules = {
+  title: [
+    { required: true, message: '请输入提醒标题', trigger: 'blur' }
+  ],
+  description: [
+    { required: true, message: '请输入提醒描述', trigger: 'blur' }
+  ],
+  type: [
+    { required: true, message: '请选择提醒类型', trigger: 'change' }
+  ],
+  method: [
+    { required: true, message: '请选择提醒方式', trigger: 'change' }
+  ],
+  time: [
+    { required: true, message: '请选择提醒时间', trigger: 'change' }
+  ]
+}
+
+// 计算属性
+const activeReminders = computed(() => 
+  reminders.value.filter(r => r.enabled)
+)
+
+const recentHistory = computed(() => 
+  reminderHistory.value
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 10)
+)
+
+// 定时器
+let reminderInterval: NodeJS.Timeout | null = null
+
 // 方法
-const toggleReminder = (enabled: boolean) => {
-  if (enabled) {
-    message.success('学习提醒已开启')
-    setupReminders()
-  } else {
-    message.info('学习提醒已关闭')
-    clearAllReminders()
+const createQuickReminder = (type: string) => {
+  const templates = {
+    daily: {
+      title: '每日学习提醒',
+      description: '每天固定时间提醒开始学习',
+      type: 'daily',
+      method: 'all',
+      repeat: 'daily',
+      time: dayjs().hour(9).minute(0),
+      sound: 'bell'
+    },
+    break: {
+      title: '休息提醒',
+      description: '学习间隔提醒休息',
+      type: 'break',
+      method: 'notification',
+      repeat: 'custom',
+      time: dayjs().add(30, 'minute'),
+      sound: 'chime'
+    },
+    goal: {
+      title: '目标检查提醒',
+      description: '定期检查学习目标进度',
+      type: 'goal',
+      method: 'popup',
+      repeat: 'weekly',
+      time: dayjs().hour(20).minute(0),
+      weekdays: ['1', '3', '5'],
+      sound: 'ding'
+    }
+  }
+
+  const template = templates[type as keyof typeof templates]
+  if (template) {
+    Object.assign(formData, template)
+    editingReminder.value = null
+    showCreateModal.value = true
   }
 }
 
-const updateDailyReminder = () => {
-  if (reminderEnabled.value) {
-    setupDailyReminder()
-    message.success('每日提醒时间已更新')
-  }
-}
-
-const updateReminderDays = () => {
-  if (reminderEnabled.value) {
-    setupDailyReminder()
-    message.success('提醒周期已更新')
-  }
-}
-
-const updateReminderMessage = () => {
-  message.success('提醒内容已更新')
-}
-
-const updateGoalReminder = () => {
-  message.success('目标提醒设置已更新')
-}
-
-const updateProgressReminder = () => {
-  message.success('进度提醒设置已更新')
-}
-
-const updateAchievementReminder = () => {
-  message.success('成就提醒设置已更新')
-}
-
-const updateStreakReminder = () => {
-  message.success('连续学习提醒设置已更新')
-}
-
-const updateReviewReminder = () => {
-  message.success('复习提醒设置已更新')
-}
-
-const updateWeaknessReminder = () => {
-  message.success('薄弱环节提醒设置已更新')
-}
-
-const updateOptimalTimeReminder = () => {
-  message.success('最佳学习时间提醒设置已更新')
-}
-
-const getReminderIcon = (type: string) => {
-  const icons = {
-    daily: Clock,
-    goal: Target,
-    achievement: Trophy,
-    review: BookOpen,
-    weakness: Brain,
-    optimal: Calendar
-  }
-  return icons[type as keyof typeof icons] || Bell
-}
-
-const formatReminderTime = (time: string) => {
-  const reminderTime = dayjs(time)
-  const now = dayjs()
-  
-  if (reminderTime.isSame(now, 'day')) {
-    return `今天 ${reminderTime.format('HH:mm')}`
-  } else if (reminderTime.isSame(now.add(1, 'day'), 'day')) {
-    return `明天 ${reminderTime.format('HH:mm')}`
-  } else {
-    return reminderTime.format('MM-DD HH:mm')
-  }
-}
-
-const snoozeReminder = (id: number) => {
-  const reminder = upcomingReminders.value.find(r => r.id === id)
-  if (reminder) {
-    // 延迟30分钟
-    reminder.scheduledTime = dayjs(reminder.scheduledTime).add(30, 'minute').toISOString()
-    message.info('提醒已延迟30分钟')
-  }
-}
-
-const cancelReminder = (id: number) => {
-  const index = upcomingReminders.value.findIndex(r => r.id === id)
-  if (index > -1) {
-    upcomingReminders.value.splice(index, 1)
-    message.success('提醒已取消')
-  }
-}
-
-const refreshUpcomingReminders = () => {
-  // 刷新即将到来的提醒
-  message.success('提醒列表已刷新')
-}
-
-const getHistoryColor = (status: string) => {
-  const colors = {
-    completed: 'green',
-    snoozed: 'orange',
-    cancelled: 'red'
-  }
-  return colors[status as keyof typeof colors] || 'blue'
-}
-
-const getHistoryIcon = (status: string) => {
-  const icons = {
-    completed: CheckCircle,
-    snoozed: AlertCircle,
-    cancelled: XCircle
-  }
-  return icons[status as keyof typeof icons] || Bell
-}
-
-const formatHistoryTime = (time: string) => {
-  return dayjs(time).format('MM-DD HH:mm')
-}
-
-const getStatusText = (status: string) => {
-  const texts = {
-    completed: '已完成',
-    snoozed: '已延迟',
-    cancelled: '已取消'
-  }
-  return texts[status as keyof typeof texts] || '未知'
-}
-
-const clearReminderHistory = () => {
-  reminderHistory.value = []
-  message.success('提醒历史已清空')
-}
-
-const testReminder = async () => {
-  testingReminder.value = true
-  
+const handleSubmit = async () => {
   try {
-    // 模拟发送测试提醒
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await formRef.value?.validate()
     
-    // 如果有通知中心组件，发送测试通知
-    if (props.notificationCenter) {
-      props.notificationCenter.addNotification({
-        type: 'reminder',
-        title: '🔔 测试提醒',
-        message: '这是一条测试提醒消息，提醒功能正常工作！',
-        actionUrl: '/games'
-      })
+    const reminderData: Omit<Reminder, 'id' | 'createdAt'> = {
+      title: formData.title,
+      description: formData.description,
+      type: formData.type as Reminder['type'],
+      method: formData.method as Reminder['method'],
+      repeat: formData.repeat as Reminder['repeat'],
+      time: formData.time!.format('HH:mm'),
+      weekdays: formData.weekdays,
+      sound: formData.sound,
+      enabled: true
     }
     
-    message.success('测试提醒已发送')
+    if (editingReminder.value) {
+      // 编辑提醒
+      const index = reminders.value.findIndex(r => r.id === editingReminder.value!.id)
+      if (index !== -1) {
+        reminders.value[index] = {
+          ...reminders.value[index],
+          ...reminderData
+        }
+        message.success('提醒更新成功')
+      }
+    } else {
+      // 创建新提醒
+      const newReminder: Reminder = {
+        ...reminderData,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString()
+      }
+      reminders.value.unshift(newReminder)
+      message.success('提醒创建成功')
+    }
+    
+    showCreateModal.value = false
+    saveRemindersToStorage()
   } catch (error) {
-    message.error('测试提醒发送失败')
-  } finally {
-    testingReminder.value = false
+    console.error('表单验证失败:', error)
   }
 }
 
-// 设置提醒
-const setupReminders = () => {
-  setupDailyReminder()
-  setupGoalReminders()
-  setupReviewReminders()
+const handleCancel = () => {
+  showCreateModal.value = false
+  resetForm()
 }
 
-const setupDailyReminder = () => {
-  // 设置每日提醒逻辑
-  console.log('设置每日提醒:', {
-    time: dailyReminderTime.value.format('HH:mm'),
-    days: reminderDays.value,
-    message: reminderMessage.value
+const resetForm = () => {
+  Object.assign(formData, {
+    title: '',
+    description: '',
+    type: 'daily',
+    method: 'notification',
+    repeat: 'daily',
+    time: null,
+    weekdays: [],
+    sound: 'default'
   })
 }
 
-const setupGoalReminders = () => {
-  // 设置目标提醒逻辑
-  if (goalReminderEnabled.value) {
-    console.log('设置目标提醒:', {
-      advance: goalReminderAdvance.value,
-      progress: progressReminderEnabled.value
+const handleReminderAction = ({ key }: { key: string }, reminder: Reminder) => {
+  switch (key) {
+    case 'edit':
+      editReminder(reminder)
+      break
+    case 'test':
+      testReminder(reminder)
+      break
+    case 'duplicate':
+      duplicateReminder(reminder)
+      break
+    case 'delete':
+      deleteReminder(reminder.id)
+      break
+  }
+}
+
+const editReminder = (reminder: Reminder) => {
+  editingReminder.value = reminder
+  Object.assign(formData, {
+    title: reminder.title,
+    description: reminder.description,
+    type: reminder.type,
+    method: reminder.method,
+    repeat: reminder.repeat,
+    time: dayjs(reminder.time, 'HH:mm'),
+    weekdays: reminder.weekdays || [],
+    sound: reminder.sound
+  })
+  showCreateModal.value = true
+}
+
+const testReminder = (reminder: Reminder) => {
+  triggerReminder(reminder)
+  message.success('测试提醒已发送')
+}
+
+const duplicateReminder = (reminder: Reminder) => {
+  const newReminder: Reminder = {
+    ...reminder,
+    id: Date.now().toString(),
+    title: `${reminder.title} (副本)`,
+    createdAt: new Date().toISOString()
+  }
+  reminders.value.unshift(newReminder)
+  message.success('提醒已复制')
+  saveRemindersToStorage()
+}
+
+const deleteReminder = (id: string) => {
+  const index = reminders.value.findIndex(r => r.id === id)
+  if (index !== -1) {
+    reminders.value.splice(index, 1)
+    message.success('提醒已删除')
+    saveRemindersToStorage()
+  }
+}
+
+const toggleReminder = (id: string) => {
+  const reminder = reminders.value.find(r => r.id === id)
+  if (reminder) {
+    message.success(`提醒已${reminder.enabled ? '启用' : '禁用'}`)
+    saveRemindersToStorage()
+  }
+}
+
+const toggleGlobalReminders = (enabled: boolean) => {
+  if (enabled) {
+    startReminderService()
+    message.success('提醒系统已启用')
+  } else {
+    stopReminderService()
+    message.success('提醒系统已禁用')
+  }
+}
+
+const triggerReminder = (reminder: Reminder) => {
+  // 检查免打扰时间
+  if (settings.value.quietHours) {
+    const now = dayjs()
+    const [start, end] = settings.value.quietHours
+    if (now.isAfter(start) && now.isBefore(end)) {
+      return
+    }
+  }
+
+  // 浏览器通知
+  if (settings.value.browserNotification && 
+      (reminder.method === 'notification' || reminder.method === 'all')) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(reminder.title, {
+        body: reminder.description,
+        icon: '/favicon.ico'
+      })
+    }
+  }
+
+  // 声音提醒
+  if (settings.value.soundEnabled && 
+      (reminder.method === 'sound' || reminder.method === 'all')) {
+    playReminderSound(reminder.sound)
+  }
+
+  // 弹窗提醒
+  if (settings.value.popupEnabled && 
+      (reminder.method === 'popup' || reminder.method === 'all')) {
+    message.info({
+      content: `${reminder.title}: ${reminder.description}`,
+      duration: 10
     })
   }
+
+  // 记录历史
+  addToHistory(reminder, 'triggered')
 }
 
-const setupReviewReminders = () => {
-  // 设置复习提醒逻辑
-  if (reviewReminderEnabled.value) {
-    console.log('设置复习提醒')
+const playReminderSound = (soundType: string) => {
+  // 模拟播放提醒音效
+  console.log(`播放提醒音效: ${soundType}`)
+}
+
+const addToHistory = (reminder: Reminder, status: ReminderHistory['status']) => {
+  const history: ReminderHistory = {
+    id: Date.now().toString(),
+    reminderId: reminder.id,
+    title: reminder.title,
+    action: getActionText(reminder.type),
+    status,
+    timestamp: new Date().toISOString()
+  }
+  reminderHistory.value.unshift(history)
+  
+  // 保持历史记录在合理数量
+  if (reminderHistory.value.length > 50) {
+    reminderHistory.value = reminderHistory.value.slice(0, 50)
   }
 }
 
-const clearAllReminders = () => {
-  // 清除所有提醒
-  console.log('清除所有提醒')
+const clearHistory = () => {
+  reminderHistory.value = []
+  message.success('历史记录已清空')
 }
 
-// 模拟智能提醒
-const simulateSmartReminders = () => {
-  // 根据学习数据生成智能提醒
-  if (weaknessReminderEnabled.value) {
-    // 添加薄弱环节提醒
-    setTimeout(() => {
-      if (props.notificationCenter) {
-        props.notificationCenter.addNotification({
-          type: 'reminder',
-          title: '💡 智能提醒',
-          message: '检测到您在语法方面需要加强，建议进行相关练习',
-          actionUrl: '/games'
-        })
+const saveSettings = () => {
+  localStorage.setItem('reminderSettings', JSON.stringify(settings.value))
+  message.success('设置已保存')
+  showSettings.value = false
+}
+
+const saveRemindersToStorage = () => {
+  localStorage.setItem('reminders', JSON.stringify(reminders.value))
+}
+
+const loadRemindersFromStorage = () => {
+  const saved = localStorage.getItem('reminders')
+  if (saved) {
+    reminders.value = JSON.parse(saved)
+  }
+}
+
+const loadSettingsFromStorage = () => {
+  const saved = localStorage.getItem('reminderSettings')
+  if (saved) {
+    const savedSettings = JSON.parse(saved)
+    Object.assign(settings.value, savedSettings)
+    
+    // 处理时间范围
+    if (savedSettings.quietHours) {
+      settings.value.quietHours = [
+        dayjs(savedSettings.quietHours[0]),
+        dayjs(savedSettings.quietHours[1])
+      ]
+    }
+  }
+}
+
+const startReminderService = () => {
+  if (reminderInterval) return
+  
+  reminderInterval = setInterval(() => {
+    checkReminders()
+  }, 60000) // 每分钟检查一次
+}
+
+const stopReminderService = () => {
+  if (reminderInterval) {
+    clearInterval(reminderInterval)
+    reminderInterval = null
+  }
+}
+
+const checkReminders = () => {
+  if (!globalEnabled.value) return
+  
+  const now = dayjs()
+  const currentTime = now.format('HH:mm')
+  const currentWeekday = now.day().toString()
+  
+  reminders.value.forEach(reminder => {
+    if (!reminder.enabled) return
+    
+    let shouldTrigger = false
+    
+    switch (reminder.repeat) {
+      case 'daily':
+        shouldTrigger = reminder.time === currentTime
+        break
+      case 'weekly':
+        shouldTrigger = reminder.time === currentTime && 
+                      reminder.weekdays?.includes(currentWeekday)
+        break
+      case 'once':
+        // 检查是否是设定的日期和时间
+        shouldTrigger = reminder.time === currentTime && 
+                       !reminder.lastTriggered
+        break
+    }
+    
+    if (shouldTrigger) {
+      triggerReminder(reminder)
+      reminder.lastTriggered = now.toISOString()
+    }
+  })
+}
+
+// 工具函数
+const getReminderIcon = (type: string) => {
+  const icons: Record<string, any> = {
+    daily: Calendar,
+    break: Coffee,
+    goal: Target,
+    review: BookOpen,
+    custom: Bell
+  }
+  return icons[type] || Bell
+}
+
+const getReminderIconColor = (type: string): string => {
+  const colors: Record<string, string> = {
+    daily: 'text-blue-500',
+    break: 'text-orange-500',
+    goal: 'text-green-500',
+    review: 'text-purple-500',
+    custom: 'text-gray-500'
+  }
+  return colors[type] || 'text-gray-500'
+}
+
+const formatSchedule = (reminder: Reminder): string => {
+  let schedule = `${reminder.time}`
+  
+  switch (reminder.repeat) {
+    case 'daily':
+      schedule += ' 每天'
+      break
+    case 'weekly':
+      if (reminder.weekdays && reminder.weekdays.length > 0) {
+        const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+        const days = reminder.weekdays.map(d => weekdayNames[parseInt(d)]).join('、')
+        schedule += ` ${days}`
       }
-    }, 5000)
+      break
+    case 'once':
+      schedule += ' 仅一次'
+      break
+    case 'custom':
+      schedule += ' 自定义'
+      break
   }
+  
+  return schedule
+}
+
+const formatTime = (timestamp: string): string => {
+  const now = dayjs()
+  const time = dayjs(timestamp)
+  const diff = now.diff(time, 'minute')
+  
+  if (diff < 1) return '刚刚'
+  if (diff < 60) return `${diff}分钟前`
+  if (diff < 1440) return `${Math.floor(diff / 60)}小时前`
+  return time.format('MM-DD HH:mm')
+}
+
+const getActionText = (type: string): string => {
+  const actions: Record<string, string> = {
+    daily: '开始学习',
+    break: '休息一下',
+    goal: '检查目标',
+    review: '开始复习',
+    custom: '执行任务'
+  }
+  return actions[type] || '执行任务'
+}
+
+const getHistoryStatusColor = (status: string): string => {
+  const colors: Record<string, string> = {
+    triggered: 'success',
+    dismissed: 'default',
+    snoozed: 'warning'
+  }
+  return colors[status] || 'default'
+}
+
+const getHistoryStatusText = (status: string): string => {
+  const texts: Record<string, string> = {
+    triggered: '已触发',
+    dismissed: '已忽略',
+    snoozed: '已延迟'
+  }
+  return texts[status] || '未知'
 }
 
 // 生命周期
 onMounted(() => {
-  if (reminderEnabled.value) {
-    setupReminders()
-    simulateSmartReminders()
+  loadRemindersFromStorage()
+  loadSettingsFromStorage()
+  
+  // 请求浏览器通知权限
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission()
+  }
+  
+  if (globalEnabled.value) {
+    startReminderService()
   }
 })
 
 onUnmounted(() => {
-  clearAllReminders()
+  stopReminderService()
+})
+
+// 暴露给父组件的方法
+defineExpose({
+  createReminder: (reminderData: Partial<Reminder>) => {
+    const newReminder: Reminder = {
+      id: Date.now().toString(),
+      title: reminderData.title || '新提醒',
+      description: reminderData.description || '',
+      type: reminderData.type || 'custom',
+      method: reminderData.method || 'notification',
+      repeat: reminderData.repeat || 'once',
+      time: reminderData.time || dayjs().format('HH:mm'),
+      sound: reminderData.sound || 'default',
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      ...reminderData
+    }
+    reminders.value.unshift(newReminder)
+    saveRemindersToStorage()
+    return newReminder.id
+  },
+  
+  triggerReminder: (id: string) => {
+    const reminder = reminders.value.find(r => r.id === id)
+    if (reminder) {
+      triggerReminder(reminder)
+    }
+  }
 })
 </script>
 
-<style lang="less" scoped>
+<style scoped lang="less">
 .reminder-system {
-  .reminder-card,
-  .upcoming-reminders-card,
-  .reminder-history-card {
+  .reminder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 24px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  }
 
-  .reminder-content {
-    transition: all 0.3s ease;
-
-    &.disabled {
-      opacity: 0.5;
-      pointer-events: none;
-    }
-
-    .reminder-section {
-      margin-bottom: 32px;
-
-      &:last-child {
-        margin-bottom: 0;
-      }
-
-      .section-header {
-        display: flex;
-        align-items: center;
-        margin-bottom: 16px;
-
-        .section-title {
-          font-size: 16px;
-          font-weight: 500;
-          color: #262626;
-          margin: 0 0 0 8px;
-        }
-      }
-
-      .reminder-options {
-        .option-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 0;
-          border-bottom: 1px solid #f5f5f5;
-
-          &:last-child {
-            border-bottom: none;
-          }
-
-          .option-label {
-            font-size: 14px;
-            color: #262626;
-            font-weight: 500;
-          }
-
-          .option-info {
-            flex: 1;
-
-            .option-label {
-              display: block;
-              margin-bottom: 2px;
-            }
-
-            .option-description {
-              font-size: 12px;
-              color: #8c8c8c;
-            }
-          }
-
-          .day-checkbox {
-            margin-right: 8px;
-            margin-bottom: 8px;
-          }
-        }
-      }
-    }
-  }
-
-  .upcoming-reminders {
-    .reminder-item {
+    .header-left {
       display: flex;
-      align-items: flex-start;
-      padding: 16px;
-      border: 1px solid #f0f0f0;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      transition: all 0.2s ease;
+      align-items: center;
+      gap: 8px;
+
+      h3 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+    }
+  }
+
+  .quick-settings {
+    margin-bottom: 24px;
+
+    .quick-card {
+      cursor: pointer;
+      transition: all 0.3s;
 
       &:hover {
-        border-color: #d9d9d9;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        border-color: #1890ff;
+        box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
       }
 
-      &:last-child {
-        margin-bottom: 0;
-      }
-
-      &.reminder-daily {
-        border-left: 3px solid #1890ff;
-      }
-
-      &.reminder-goal {
-        border-left: 3px solid #52c41a;
-      }
-
-      &.reminder-review {
-        border-left: 3px solid #fa8c16;
-      }
-
-      &.reminder-weakness {
-        border-left: 3px solid #722ed1;
-      }
-
-      .reminder-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: 6px;
-        background: #f5f5f5;
+      .quick-content {
         display: flex;
         align-items: center;
-        justify-content: center;
-        margin-right: 12px;
-        flex-shrink: 0;
-      }
+        gap: 12px;
 
-      .reminder-info {
-        flex: 1;
-        min-width: 0;
+        .quick-text {
+          .quick-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+          }
 
-        .reminder-title {
-          font-size: 14px;
-          font-weight: 500;
-          color: #262626;
-          margin: 0 0 4px 0;
+          .quick-desc {
+            font-size: 12px;
+            color: #666;
+          }
         }
-
-        .reminder-description {
-          font-size: 13px;
-          color: #595959;
-          line-height: 1.4;
-          margin: 0 0 8px 0;
-        }
-
-        .reminder-time {
-          display: flex;
-          align-items: center;
-          font-size: 12px;
-          color: #8c8c8c;
-        }
-      }
-
-      .reminder-actions {
-        display: flex;
-        gap: 8px;
-        margin-left: 12px;
       }
     }
+  }
 
-    .no-reminders {
-      text-align: center;
-      padding: 40px 20px;
+  .active-reminders {
+    margin-bottom: 24px;
 
-      .no-reminders-icon {
-        color: #d9d9d9;
+    .reminder-list {
+      .reminder-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        border: 1px solid #e8e8e8;
+        border-radius: 8px;
         margin-bottom: 12px;
-      }
+        transition: all 0.3s;
 
-      .no-reminders-text {
-        font-size: 14px;
-        color: #8c8c8c;
-        margin: 0;
+        &:hover {
+          border-color: #1890ff;
+          box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
+        }
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+
+        .reminder-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background-color: #f5f5f5;
+        }
+
+        .reminder-content {
+          flex: 1;
+
+          .reminder-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+          }
+
+          .reminder-desc {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+          }
+
+          .reminder-schedule {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            color: #999;
+          }
+        }
+
+        .reminder-status {
+          flex-shrink: 0;
+        }
+
+        .reminder-actions {
+          flex-shrink: 0;
+        }
       }
     }
   }
 
   .reminder-history {
-    .history-content {
-      .history-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 4px;
+    .history-list {
+      max-height: 300px;
+      overflow-y: auto;
 
-        .history-title {
-          font-size: 14px;
-          font-weight: 500;
-          color: #262626;
+      .history-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-bottom: 1px solid #f0f0f0;
+
+        &:last-child {
+          border-bottom: none;
         }
 
         .history-time {
+          flex-shrink: 0;
           font-size: 12px;
-          color: #8c8c8c;
-        }
-      }
-
-      .history-description {
-        font-size: 13px;
-        color: #595959;
-        line-height: 1.4;
-        margin: 0 0 8px 0;
-      }
-
-      .history-status {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 500;
-
-        &.status-completed {
-          background: #f6ffed;
-          color: #52c41a;
+          color: #999;
+          width: 80px;
         }
 
-        &.status-snoozed {
-          background: #fff7e6;
-          color: #fa8c16;
+        .history-content {
+          flex: 1;
+
+          .history-title {
+            font-weight: 500;
+            margin-bottom: 2px;
+          }
+
+          .history-action {
+            font-size: 12px;
+            color: #666;
+          }
         }
 
-        &.status-cancelled {
-          background: #fff2f0;
-          color: #ff4d4f;
+        .history-status {
+          flex-shrink: 0;
         }
       }
     }
-
-    .no-history {
-      text-align: center;
-      padding: 20px;
-
-      .no-history-text {
-        font-size: 14px;
-        color: #8c8c8c;
-        margin: 0;
-      }
-    }
-  }
-
-  .test-reminder {
-    text-align: center;
-    margin-top: 24px;
   }
 }
 
+// 响应式设计
 @media (max-width: 768px) {
   .reminder-system {
-    .reminder-content {
-      .reminder-section {
-        .reminder-options {
-          .option-item {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 8px;
+    .reminder-header {
+      flex-direction: column;
+      gap: 12px;
+      align-items: stretch;
+    }
 
-            .option-info {
-              margin-bottom: 8px;
-            }
-          }
-        }
+    .quick-settings {
+      :deep(.ant-col) {
+        margin-bottom: 12px;
       }
     }
 
-    .upcoming-reminders {
-      .reminder-item {
-        flex-direction: column;
-        align-items: stretch;
+    .reminder-item {
+      flex-direction: column;
+      align-items: stretch !important;
+      gap: 12px !important;
 
-        .reminder-icon {
-          align-self: flex-start;
-          margin-bottom: 12px;
-        }
+      .reminder-content {
+        text-align: center;
+      }
 
-        .reminder-actions {
-          margin-left: 0;
-          margin-top: 12px;
-          justify-content: flex-end;
-        }
+      .reminder-actions {
+        align-self: center;
+      }
+    }
+
+    .history-item {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      text-align: center;
+
+      .history-time {
+        width: auto !important;
       }
     }
   }

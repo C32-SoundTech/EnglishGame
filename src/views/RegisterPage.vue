@@ -235,14 +235,13 @@ const handleRegister = async () => {
     const result = await authStore.signUp(
       formData.email,
       formData.password,
-      {
-        name: formData.name,
-        grade: parseInt(formData.grade!)
-      }
+      formData.name,
+      'student',
+      formData.grade
     )
     
     if (result.success) {
-      message.success('注册成功！请查看邮箱验证链接')
+      message.success('注册成功！欢迎加入小学英语学习平台')
       router.push('/login')
     } else {
       message.error(result.error || '注册失败')

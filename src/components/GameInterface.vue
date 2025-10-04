@@ -103,7 +103,8 @@
               <a-button 
                 type="primary" 
                 @click="submitAnswer"
-                :disabled="userAnswer.join('').length !== currentQuestion.answer.length"
+                :disabled="userAnswer.join('').length !== currentQuestion.answer.length || submitting"
+                :loading="submitting"
               >
                 <Check class="w-4 h-4 mr-1" />
                 提交
@@ -163,7 +164,8 @@
               <a-button 
                 type="primary" 
                 @click="submitAnswer"
-                :disabled="!selectedAnswer"
+                :disabled="!selectedAnswer || submitting"
+                :loading="submitting"
               >
                 <Check class="w-4 h-4 mr-1" />
                 提交答案
@@ -218,7 +220,8 @@
               <a-button 
                 type="primary" 
                 @click="submitAnswer"
-                :disabled="!isGrammarComplete"
+                :disabled="!isGrammarComplete || submitting"
+                :loading="submitting"
               >
                 <Check class="w-4 h-4 mr-1" />
                 提交答案
@@ -271,7 +274,8 @@
                 <a-button 
                   type="primary" 
                   @click="submitAnswer"
-                  :disabled="!isReadingComplete"
+                  :disabled="!isReadingComplete || submitting"
+                  :loading="submitting"
                 >
                   <Check class="w-4 h-4 mr-1" />
                   提交答案
@@ -394,6 +398,560 @@
                 </a-button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- 句子排序游戏 -->
+        <div v-else-if="currentGame.type === 'sentence-order'" class="sentence-order-game">
+          <div class="question-section">
+            <h3>句子排序</h3>
+            <div class="instruction">
+              <p>将下面的单词拖拽排列成正确的句子</p>
+            </div>
+            <div class="target-sentence" v-if="showTargetSentence">
+              <div class="sentence-hint">
+                <Lightbulb class="w-4 h-4 mr-2" />
+                参考: {{ currentQuestion.hint }}
+              </div>
+            </div>
+          </div>
+          
+          <div class="answer-section">
+            <div class="word-bank">
+              <h4>单词库</h4>
+              <div class="word-list">
+                <div 
+                  v-for="(word, index) in availableWords" 
+                  :key="`bank-${index}`"
+                  class="word-item draggable"
+                  :class="{ used: word.used }"
+                  draggable="true"
+                  @dragstart="startDrag($event, word, 'bank')"
+                  @click="selectWordFromBank(word)"
+                >
+                  {{ word.text }}
+                </div>
+              </div>
+            </div>
+            
+            <div class="sentence-builder">
+              <h4>组成句子</h4>
+              <div 
+                class="drop-zone"
+                @drop="dropWord($event)"
+                @dragover.prevent
+                @dragenter.prevent
+              >
+                <div 
+                  v-for="(word, index) in sentenceWords" 
+                  :key="`sentence-${index}`"
+                  class="sentence-word"
+                  draggable="true"
+                  @dragstart="startDrag($event, word, 'sentence')"
+                  @click="removeWordFromSentence(index)"
+                >
+                  {{ word.text }}
+                  <X class="w-3 h-3 ml-1 remove-icon" />
+                </div>
+                <div v-if="sentenceWords.length === 0" class="drop-placeholder">
+                  将单词拖拽到这里组成句子
+                </div>
+              </div>
+            </div>
+            
+            <div class="game-actions">
+              <a-button @click="clearSentence" :disabled="sentenceWords.length === 0">
+                <RotateCcw class="w-4 h-4 mr-1" />
+                清空
+              </a-button>
+              <a-button @click="showTargetSentence = !showTargetSentence" type="dashed">
+                <Lightbulb class="w-4 h-4 mr-1" />
+                {{ showTargetSentence ? '隐藏' : '显示' }}提示
+              </a-button>
+              <a-button 
+                type="primary" 
+                @click="submitAnswer"
+                :disabled="sentenceWords.length === 0 || submitting"
+                :loading="submitting"
+              >
+                <Check class="w-4 h-4 mr-1" />
+                提交答案
+              </a-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 语音识别游戏 -->
+        <div v-else-if="currentGame.type === 'speech-recognition'" class="speech-game">
+          <div class="question-section">
+            <h3>语音练习</h3>
+            <div class="target-text">
+              <div class="text-to-read">
+                <h4>请朗读以下内容:</h4>
+                <div class="reading-text">{{ currentQuestion.text }}</div>
+                <div class="pronunciation-guide" v-if="currentQuestion.phonetic">
+                  <span class="phonetic">{{ currentQuestion.phonetic }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="answer-section">
+            <div class="speech-controls">
+              <div class="recording-area">
+                <a-button 
+                  :type="isRecording ? 'danger' : 'primary'"
+                  size="large"
+                  class="record-button"
+                  @click="toggleRecording"
+                  :loading="processingAudio"
+                >
+                  <Mic v-if="!isRecording" class="w-6 h-6 mr-2" />
+                  <Square v-else class="w-6 h-6 mr-2" />
+                  {{ isRecording ? '停止录音' : '开始录音' }}
+                </a-button>
+                
+                <div v-if="isRecording" class="recording-indicator">
+                  <div class="pulse-dot"></div>
+                  <span>正在录音... {{ recordingTime }}s</span>
+                </div>
+              </div>
+              
+              <div v-if="recordedAudio" class="playback-controls">
+                <a-button @click="playRecording" :loading="playingRecording">
+                  <Play class="w-4 h-4 mr-1" />
+                  播放录音
+                </a-button>
+                <a-button @click="clearRecording">
+                  <Trash2 class="w-4 h-4 mr-1" />
+                  重新录音
+                </a-button>
+              </div>
+            </div>
+            
+            <div v-if="speechResult" class="speech-result">
+              <div class="result-header">
+                <h4>识别结果</h4>
+                <div class="accuracy-score">
+                  <span class="score-label">准确度:</span>
+                  <span class="score-value" :class="getAccuracyClass(speechAccuracy)">
+                    {{ speechAccuracy }}%
+                  </span>
+                </div>
+              </div>
+              
+              <div class="text-comparison">
+                <div class="original-text">
+                  <h5>原文:</h5>
+                  <p>{{ currentQuestion.text }}</p>
+                </div>
+                <div class="recognized-text">
+                  <h5>识别:</h5>
+                  <p>{{ speechResult }}</p>
+                </div>
+              </div>
+              
+              <div class="pronunciation-feedback">
+                <div class="feedback-items">
+                  <div 
+                    v-for="feedback in pronunciationFeedback" 
+                    :key="feedback.word"
+                    class="feedback-item"
+                    :class="feedback.status"
+                  >
+                    <span class="word">{{ feedback.word }}</span>
+                    <span class="status-icon">
+                      <Check v-if="feedback.status === 'correct'" class="w-4 h-4" />
+                      <AlertCircle v-else class="w-4 h-4" />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="game-actions">
+              <a-button 
+                type="primary" 
+                @click="submitAnswer"
+                :disabled="!speechResult || submitting"
+                :loading="submitting"
+              >
+                <Check class="w-4 h-4 mr-1" />
+                确认结果
+              </a-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 填空练习游戏 -->
+        <div v-else-if="currentGame.type === 'fill-blanks'" class="fill-blanks-game">
+          <div class="question-section">
+            <h3>填空练习</h3>
+            <div class="passage-container">
+              <div class="passage-text">
+                <span 
+                  v-for="(part, index) in passageParts" 
+                  :key="index"
+                  class="passage-part"
+                >
+                  <span v-if="part.type === 'text'">{{ part.content }}</span>
+                  <span v-else-if="part.type === 'blank'" class="blank-container">
+                    <a-input 
+                      v-model:value="part.userInput"
+                      :placeholder="`空格${part.blankIndex + 1}`"
+                      class="blank-input"
+                      :class="{ 
+                        correct: part.showFeedback && part.isCorrect,
+                        incorrect: part.showFeedback && !part.isCorrect
+                      }"
+                      @input="updateBlankAnswer(part.blankIndex, $event.target.value)"
+                    />
+                    <div v-if="part.showHint" class="blank-hint">
+                      {{ part.hint }}
+                    </div>
+                  </span>
+                </span>
+              </div>
+            </div>
+            
+            <div class="word-options" v-if="currentQuestion.options">
+              <h4>选择词汇</h4>
+              <div class="option-list">
+                <a-tag 
+                  v-for="(option, index) in currentQuestion.options" 
+                  :key="index"
+                  class="word-option"
+                  :class="{ used: usedOptions.includes(option) }"
+                  @click="selectOption(option)"
+                  :color="usedOptions.includes(option) ? 'default' : 'blue'"
+                >
+                  {{ option }}
+                </a-tag>
+              </div>
+            </div>
+          </div>
+          
+          <div class="answer-section">
+            <div class="fill-progress">
+              <div class="progress-info">
+                <span>已填写: {{ filledBlanks }} / {{ totalBlanks }}</span>
+                <a-progress 
+                  :percent="Math.round((filledBlanks / totalBlanks) * 100)" 
+                  size="small"
+                  :show-info="false"
+                />
+              </div>
+            </div>
+            
+            <div class="game-actions">
+              <a-button @click="showAllHints" :disabled="allHintsShown">
+                <Lightbulb class="w-4 h-4 mr-1" />
+                显示提示
+              </a-button>
+              <a-button @click="checkAnswers" :disabled="filledBlanks === 0">
+                <Eye class="w-4 h-4 mr-1" />
+                检查答案
+              </a-button>
+              <a-button 
+                type="primary" 
+                @click="submitAnswer"
+                :disabled="filledBlanks !== totalBlanks || submitting"
+                :loading="submitting"
+              >
+                <Check class="w-4 h-4 mr-1" />
+                提交答案
+              </a-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 图片描述游戏 -->
+        <div v-else-if="currentGame.type === 'image-description'" class="image-description-game">
+          <div class="question-section">
+            <h3>看图说话</h3>
+            <div class="image-container">
+              <img :src="currentQuestion.imageUrl" :alt="currentQuestion.imageAlt" class="description-image" />
+              <div class="image-info">
+                <div class="image-title">{{ currentQuestion.imageTitle }}</div>
+                <div class="image-prompt">{{ currentQuestion.prompt }}</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="answer-section">
+            <div class="description-input">
+              <h4>请用英语描述这张图片</h4>
+              <a-textarea 
+                v-model:value="imageDescription"
+                :rows="6"
+                placeholder="请用英语描述你看到的内容..."
+                class="description-textarea"
+                :maxlength="500"
+                show-count
+              />
+            </div>
+            
+            <div class="description-tools">
+              <div class="word-suggestions" v-if="wordSuggestions.length > 0">
+                <h5>参考词汇</h5>
+                <div class="suggestion-list">
+                  <a-tag 
+                    v-for="word in wordSuggestions" 
+                    :key="word"
+                    class="suggestion-word"
+                    @click="addWordToDescription(word)"
+                    color="blue"
+                  >
+                    {{ word }}
+                  </a-tag>
+                </div>
+              </div>
+              
+              <div class="description-requirements">
+                <h5>描述要求</h5>
+                <ul class="requirement-list">
+                  <li 
+                    v-for="requirement in currentQuestion.requirements" 
+                    :key="requirement"
+                    class="requirement-item"
+                  >
+                    {{ requirement }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+            
+            <div class="game-actions">
+              <a-button @click="getWordSuggestions" :loading="loadingSuggestions">
+                <Lightbulb class="w-4 h-4 mr-1" />
+                获取词汇提示
+              </a-button>
+              <a-button @click="clearDescription" :disabled="!imageDescription">
+                <RotateCcw class="w-4 h-4 mr-1" />
+                清空重写
+              </a-button>
+              <a-button 
+                type="primary" 
+                @click="submitAnswer"
+                :disabled="!imageDescription.trim() || submitting"
+                :loading="submitting"
+              >
+                <Check class="w-4 h-4 mr-1" />
+                提交描述
+              </a-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 单词连线游戏 -->
+        <div v-else-if="currentGame.type === 'word-matching'" class="word-matching-game">
+          <div class="question-section">
+            <h3>单词连线</h3>
+            <p class="game-instruction">将左边的单词与右边对应的意思连线</p>
+          </div>
+          
+          <div class="matching-area">
+            <div class="words-column">
+              <h4>单词</h4>
+              <div class="word-list">
+                <div 
+                  v-for="(word, index) in currentQuestion.words" 
+                  :key="index"
+                  class="word-item"
+                  :class="{ 
+                    selected: selectedWordIndex === index,
+                    matched: wordMatches[index] !== undefined,
+                    correct: wordMatches[index] === word.correctMatch
+                  }"
+                  @click="selectWord(index)"
+                >
+                  <div class="word-text">{{ word.text }}</div>
+                  <div class="word-pronunciation" v-if="word.pronunciation">
+                    [{{ word.pronunciation }}]
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="connection-area">
+              <svg class="connection-svg" ref="connectionSvg">
+                <line 
+                  v-for="(line, index) in connectionLines" 
+                  :key="index"
+                  :x1="line.x1" 
+                  :y1="line.y1" 
+                  :x2="line.x2" 
+                  :y2="line.y2"
+                  :class="{ correct: line.correct, incorrect: line.incorrect }"
+                  stroke-width="3"
+                />
+              </svg>
+            </div>
+            
+            <div class="meanings-column">
+              <h4>释义</h4>
+              <div class="meaning-list">
+                <div 
+                  v-for="(meaning, index) in currentQuestion.meanings" 
+                  :key="index"
+                  class="meaning-item"
+                  :class="{ 
+                    selected: selectedMeaningIndex === index,
+                    matched: meaningMatches[index] !== undefined,
+                    correct: meaningMatches[index] === meaning.correctMatch
+                  }"
+                  @click="selectMeaning(index)"
+                >
+                  <div class="meaning-text">{{ meaning.text }}</div>
+                  <div class="meaning-example" v-if="meaning.example">
+                    例: {{ meaning.example }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="game-actions">
+            <a-button @click="clearMatches" :disabled="Object.keys(wordMatches).length === 0">
+              <RotateCcw class="w-4 h-4 mr-1" />
+              重新连线
+            </a-button>
+            <a-button @click="showMatchingHint" type="dashed">
+              <Lightbulb class="w-4 h-4 mr-1" />
+              提示
+            </a-button>
+            <a-button 
+              type="primary" 
+              @click="submitMatching"
+              :disabled="Object.keys(wordMatches).length !== currentQuestion.words.length || submitting"
+              :loading="submitting"
+            >
+              <Check class="w-4 h-4 mr-1" />
+              提交答案
+            </a-button>
+          </div>
+        </div>
+
+        <!-- 单词拼图游戏 -->
+        <div v-else-if="currentGame.type === 'word-puzzle'" class="word-puzzle-game">
+          <div class="question-section">
+            <h3>单词拼图</h3>
+            <div class="word-clue">
+              <div class="clue-text">{{ currentQuestion.clue }}</div>
+              <div class="word-length">单词长度: {{ currentQuestion.answer.length }} 个字母</div>
+            </div>
+          </div>
+          
+          <div class="puzzle-area">
+            <div class="letter-grid">
+              <div 
+                v-for="(letter, index) in puzzleLetters" 
+                :key="index"
+                class="puzzle-letter"
+                :class="{ 
+                  selected: selectedLetters.includes(index),
+                  used: letter.used,
+                  correct: letter.correct 
+                }"
+                @click="selectPuzzleLetter(index)"
+              >
+                {{ letter.char }}
+              </div>
+            </div>
+            
+            <div class="word-construction">
+              <div class="constructed-word">
+                <div 
+                  v-for="(char, index) in constructedWord" 
+                  :key="index"
+                  class="word-char"
+                  :class="{ empty: !char }"
+                >
+                  {{ char || '_' }}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="puzzle-hints" v-if="puzzleHints.length > 0">
+            <h5>提示：</h5>
+            <ul class="hint-list">
+              <li v-for="hint in puzzleHints" :key="hint">{{ hint }}</li>
+            </ul>
+          </div>
+          
+          <div class="game-actions">
+            <a-button @click="clearPuzzle" :disabled="constructedWord.every(c => !c)">
+              <RotateCcw class="w-4 h-4 mr-1" />
+              重新拼图
+            </a-button>
+            <a-button @click="getPuzzleHint" type="dashed">
+              <Lightbulb class="w-4 h-4 mr-1" />
+              获取提示
+            </a-button>
+            <a-button 
+              type="primary" 
+              @click="submitPuzzle"
+              :disabled="constructedWord.some(c => !c) || submitting"
+              :loading="submitting"
+            >
+              <Check class="w-4 h-4 mr-1" />
+              提交答案
+            </a-button>
+          </div>
+        </div>
+
+        <!-- 图片选择游戏 -->
+        <div v-else-if="currentGame.type === 'image-choice'" class="image-choice-game">
+          <div class="question-section">
+            <h3>看图选词</h3>
+            <div class="question-text">{{ currentQuestion.question }}</div>
+            <div class="audio-section" v-if="currentQuestion.audioUrl">
+              <a-button @click="playQuestionAudio" type="dashed">
+                <Volume2 class="w-4 h-4 mr-1" />
+                播放音频
+              </a-button>
+            </div>
+          </div>
+          
+          <div class="image-options">
+            <div 
+              v-for="(option, index) in currentQuestion.imageOptions" 
+              :key="index"
+              class="image-option"
+              :class="{ 
+                selected: selectedImageIndex === index,
+                correct: showImageFeedback && option.correct,
+                incorrect: showImageFeedback && selectedImageIndex === index && !option.correct
+              }"
+              @click="selectImage(index)"
+            >
+              <div class="image-container">
+                <img :src="option.imageUrl" :alt="option.alt" class="option-image" />
+                <div class="image-overlay" v-if="showImageFeedback">
+                  <CheckCircle v-if="option.correct" class="w-8 h-8 text-green-500" />
+                  <XCircle v-else-if="selectedImageIndex === index" class="w-8 h-8 text-red-500" />
+                </div>
+              </div>
+              <div class="image-label">{{ String.fromCharCode(65 + index) }}</div>
+              <div class="image-text" v-if="option.text">{{ option.text }}</div>
+            </div>
+          </div>
+          
+          <div class="game-actions">
+            <a-button @click="playQuestionAudio" type="dashed" v-if="currentQuestion.audioUrl">
+              <Volume2 class="w-4 h-4 mr-1" />
+              重播音频
+            </a-button>
+            <a-button 
+              type="primary" 
+              @click="submitImageChoice"
+              :disabled="selectedImageIndex === null || submitting"
+              :loading="submitting"
+            >
+              <Check class="w-4 h-4 mr-1" />
+              提交选择
+            </a-button>
           </div>
         </div>
       </a-card>
@@ -647,7 +1205,12 @@ import {
   ArrowRight,
   Home,
   CheckCircle,
-  XCircle
+  XCircle,
+  Mic,
+  Square,
+  Trash2,
+  AlertCircle,
+  Eye
 } from 'lucide-vue-next'
 
 interface GameQuestion {
@@ -700,15 +1263,30 @@ const streak = ref(0)
 const maxStreak = ref(0)
 const earnedStars = ref(0)
 const earnedBadges = ref<Badge[]>([])
+const comboCount = ref(0)
+const totalQuestions = ref(0)
 
 // 答题相关
 const userAnswer = ref<string[]>([])
 const selectedAnswer = ref('')
+const selectedOption = ref('')
 const readingAnswers = ref<string[]>([])
 const usedLetters = ref<string[]>([])
 const showHint = ref(false)
 const showExplanation = ref(false)
 const showTranslation = ref(false)
+const hintUsed = ref(false)
+const highlightMode = ref(false)
+const highlightedText = ref('')
+
+// 反馈系统
+const feedbackMessage = ref('')
+const isCorrectAnswer = ref(false)
+
+// 加载状态
+const audioLoading = ref(false)
+const submitting = ref(false)
+const nextQuestionLoading = ref(false)
 
 // 单词配对游戏相关
 const vocabularyMode = ref('image')
@@ -719,6 +1297,51 @@ const selectedMeaningIndex = ref<number | null>(null)
 const wordMatches = ref<Record<number, number>>({})
 const meaningMatches = ref<Record<number, number>>({})
 const showMeaningFeedback = ref(false)
+
+// 单词连线游戏状态
+const connectionLines = ref([])
+const connectionSvg = ref(null)
+
+// 单词拼图游戏状态
+const puzzleLetters = ref([])
+const selectedLetters = ref([])
+const constructedWord = ref([])
+const puzzleHints = ref([])
+
+// 图片选择游戏状态
+const playQuestionAudio = () => {
+  soundEffectsRef.value?.playSound('click')
+  message.info('播放音频...')
+}
+
+// 句子排序游戏状态
+const availableWords = ref([])
+const sentenceWords = ref([])
+const showTargetSentence = ref(false)
+const draggedWord = ref(null)
+const dragSource = ref('')
+
+// 语音识别游戏状态
+const isRecording = ref(false)
+const recordingTime = ref(0)
+const recordedAudio = ref(null)
+const speechResult = ref('')
+const speechAccuracy = ref(0)
+const pronunciationFeedback = ref([])
+const processingAudio = ref(false)
+const playingRecording = ref(false)
+const recordingTimer = ref(null)
+
+// 填空练习游戏状态
+const passageParts = ref([])
+const blankAnswers = ref({})
+const usedOptions = ref([])
+const allHintsShown = ref(false)
+
+// 图片描述游戏状态
+const imageDescription = ref('')
+const wordSuggestions = ref([])
+const loadingSuggestions = ref(false)
 
 // 音频控制
 const playCount = ref(0)
@@ -915,6 +1538,11 @@ const playAgain = () => {
   maxStreak.value = 0
   earnedStars.value = 0
   earnedBadges.value = []
+  comboCount.value = 0
+  
+  // 播放重新开始音效
+  soundEffectsRef.value?.soundCombos.gameStart()
+  
   resetQuestionState()
 }
 
@@ -960,11 +1588,36 @@ onMounted(() => {
   // 初始化题目状态
   resetQuestionState()
   
+  // 初始化游戏特定状态
+  initializeGameState()
+  
   // 清理定时器
   onUnmounted(() => {
     clearInterval(timer)
   })
 })
+
+const initializeGameState = () => {
+  if (currentGame.value.type === 'word-puzzle') {
+    // 初始化拼图游戏
+    const answer = currentQuestion.value?.answer || 'HELLO'
+    const letters = answer.split('')
+    const extraLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+    
+    // 创建字母池（包含答案字母和干扰字母）
+    const allLetters = [...letters, ...extraLetters.slice(0, 6)]
+    puzzleLetters.value = allLetters
+      .sort(() => Math.random() - 0.5)
+      .map((char, index) => ({
+        char,
+        id: index,
+        used: false
+      }))
+    
+    constructedWord.value = Array(answer.length).fill('')
+    puzzleHints.value = []
+  }
+}
 </script>
 
 <style scoped lang="less">
@@ -2123,6 +2776,178 @@ const selectImage = (index: number) => {
   selectedImageIndex.value = index
 }
 
+// 通用答题提交方法
+const submitAnswer = async () => {
+  submitting.value = true
+  
+  try {
+    let isAnswerCorrect = false
+    let points = 0
+    
+    // 根据游戏类型检查答案
+    switch (currentGame.value.type) {
+      case 'spelling':
+        isAnswerCorrect = userAnswer.value.join('') === currentQuestion.value.answer
+        points = isAnswerCorrect ? (hintUsed.value ? 90 : 100) : 0
+        break
+      case 'listening':
+        isAnswerCorrect = selectedOption.value === currentQuestion.value.answer
+        points = isAnswerCorrect ? 100 : 0
+        break
+      case 'grammar':
+        isAnswerCorrect = checkGrammarAnswer()
+        points = isAnswerCorrect ? 100 : 0
+        break
+      case 'reading':
+        isAnswerCorrect = checkReadingAnswer()
+        points = isAnswerCorrect ? 100 : 0
+        break
+    }
+    
+    // 播放音效
+    if (isAnswerCorrect) {
+      soundEffectsRef.value?.playSuccessSequence()
+      comboCount.value++
+      streak.value++
+      maxStreak.value = Math.max(maxStreak.value, streak.value)
+    } else {
+      soundEffectsRef.value?.playErrorSequence()
+      comboCount.value = 0
+      streak.value = 0
+    }
+    
+    // 计算得分
+    if (isAnswerCorrect) {
+      const comboBonus = Math.min(comboCount.value * 10, 50)
+      points += comboBonus
+      gameScore.value += points
+      correctAnswers.value++
+      lastScore.value = points
+      
+      // 显示奖励动画
+      showRewardAnimation('points', points)
+      
+      // 连击奖励
+      if (streak.value >= 3) {
+        showRewardAnimation('combo', streak.value)
+        soundEffectsRef.value?.playStreakSequence(streak.value)
+      }
+    }
+    
+    // 显示反馈
+    showAnswerFeedback(isAnswerCorrect, points)
+    
+    // 检查徽章
+    checkBadges()
+    
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    // 进入下一题或结束游戏
+    if (currentQuestionIndex.value < currentGame.value.questions.length - 1) {
+      nextQuestion()
+    } else {
+      finishGame()
+    }
+    
+  } finally {
+    submitting.value = false
+  }
+}
+
+const checkGrammarAnswer = (): boolean => {
+  return sentenceParts.value.every(part => 
+    part.type === 'text' || (part.type === 'blank' && part.selected === part.correct)
+  )
+}
+
+const checkReadingAnswer = (): boolean => {
+  return currentQuestion.value.questions?.every((q, index) => 
+    readingAnswers.value[index] === q.answer
+  ) || false
+}
+
+const showRewardAnimation = (type: string, value?: number) => {
+  rewardType.value = type
+  if (type === 'points' && value) {
+    rewardPoints.value = value
+  }
+  rewardAnimationRef.value?.showAnimation()
+}
+
+const showAnswerFeedback = (isCorrect: boolean, points: number) => {
+  feedbackMessage.value = isCorrect ? `回答正确！+${points}分` : '回答错误，继续加油！'
+  isCorrectAnswer.value = isCorrect
+  showFeedback.value = true
+  
+  setTimeout(() => {
+    showFeedback.value = false
+  }, 2000)
+}
+
+const checkBadges = () => {
+  const stats = {
+    correctAnswers: correctAnswers.value,
+    maxStreak: maxStreak.value,
+    score: gameScore.value,
+    maxScore: currentGame.value.questions.length * 100
+  }
+  
+  badges.forEach(badge => {
+    if (!earnedBadges.value.find(b => b.id === badge.id) && badge.condition(stats)) {
+      earnedBadges.value.push(badge)
+      soundEffectsRef.value?.playBadgeSequence()
+      showRewardAnimation('badge')
+      message.success(`🎉 获得新徽章: ${badge.name}`)
+    }
+  })
+}
+
+const nextQuestion = () => {
+  nextQuestionLoading.value = true
+  
+  setTimeout(() => {
+    currentQuestionIndex.value++
+    resetQuestionState()
+    nextQuestionLoading.value = false
+  }, 500)
+}
+
+const finishGame = () => {
+  gameState.value = 'finished'
+  
+  // 计算星星
+  const scorePercent = (gameScore.value / (currentGame.value.questions.length * 100)) * 100
+  if (scorePercent >= 90) earnedStars.value = 3
+  else if (scorePercent >= 70) earnedStars.value = 2
+  else if (scorePercent >= 50) earnedStars.value = 1
+  else earnedStars.value = 0
+  
+  // 播放完成音效
+  soundEffectsRef.value?.playCompletionSequence()
+  
+  // 显示完成动画
+  showRewardAnimation('completion')
+  
+  // 保存游戏结果
+  saveGameResult()
+}
+
+const saveGameResult = () => {
+  const result = {
+    gameId: currentGame.value.id,
+    score: gameScore.value,
+    stars: earnedStars.value,
+    correctAnswers: correctAnswers.value,
+    totalQuestions: currentGame.value.questions.length,
+    time: gameTime.value,
+    badges: earnedBadges.value,
+    completedAt: new Date()
+  }
+  
+  // 保存到本地存储
+  storage.saveGameResult(result)
+}
+
 const submitImageAnswer = () => {
   if (selectedImageIndex.value === null) return
   
@@ -2267,8 +3092,1834 @@ const resetQuestionState = () => {
   meaningMatches.value = {}
   showMeaningFeedback.value = false
   
+  // 句子排序游戏
+  availableWords.value = []
+  sentenceWords.value = []
+  showTargetSentence.value = false
+  draggedWord.value = null
+  dragSource.value = ''
+  
+  // 语音识别游戏
+  isRecording.value = false
+  recordingTime.value = 0
+  recordedAudio.value = null
+  speechResult.value = ''
+  speechAccuracy.value = 0
+  pronunciationFeedback.value = []
+  processingAudio.value = false
+  playingRecording.value = false
+  if (recordingTimer.value) {
+    clearInterval(recordingTimer.value)
+    recordingTimer.value = null
+  }
+  
+  // 填空练习游戏
+  passageParts.value = []
+  blankAnswers.value = {}
+  usedOptions.value = []
+  allHintsShown.value = false
+  
+  // 图片描述游戏
+  imageDescription.value = ''
+  wordSuggestions.value = []
+  loadingSuggestions.value = false
+  
   // 通用状态
   showFeedback.value = false
   feedbackMessage.value = ''
   isCorrectAnswer.value = false
 }
+
+// 句子排序游戏方法
+const startDrag = (event: DragEvent, word: any, source: string) => {
+  draggedWord.value = word
+  dragSource.value = source
+  event.dataTransfer?.setData('text/plain', JSON.stringify({ word, source }))
+}
+
+const dropWord = (event: DragEvent) => {
+  event.preventDefault()
+  const data = JSON.parse(event.dataTransfer?.getData('text/plain') || '{}')
+  
+  if (data.source === 'bank' && !data.word.used) {
+    sentenceWords.value.push(data.word)
+    data.word.used = true
+    soundEffectsRef.value?.playSound('pop')
+  }
+}
+
+const selectWordFromBank = (word: any) => {
+  if (!word.used) {
+    sentenceWords.value.push(word)
+    word.used = true
+    soundEffectsRef.value?.playSound('pop')
+  }
+}
+
+const removeWordFromSentence = (index: number) => {
+  const word = sentenceWords.value[index]
+  word.used = false
+  sentenceWords.value.splice(index, 1)
+  soundEffectsRef.value?.playSound('whoosh')
+}
+
+const clearSentence = () => {
+  sentenceWords.value.forEach(word => word.used = false)
+  sentenceWords.value = []
+  soundEffectsRef.value?.playSound('whoosh')
+}
+
+// 语音识别游戏方法
+const toggleRecording = async () => {
+  if (isRecording.value) {
+    stopRecording()
+  } else {
+    startRecording()
+  }
+}
+
+const startRecording = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    isRecording.value = true
+    recordingTime.value = 0
+    
+    // 开始计时
+    recordingTimer.value = setInterval(() => {
+      recordingTime.value++
+    }, 1000)
+    
+    // 模拟录音（实际项目中需要使用MediaRecorder）
+    recordedAudio.value = stream
+    soundEffectsRef.value?.playSound('beep')
+    
+  } catch (error) {
+    message.error('无法访问麦克风，请检查权限设置')
+  }
+}
+
+const stopRecording = () => {
+  isRecording.value = false
+  if (recordingTimer.value) {
+    clearInterval(recordingTimer.value)
+    recordingTimer.value = null
+  }
+  
+  // 模拟语音识别处理
+  processingAudio.value = true
+  setTimeout(() => {
+    processingAudio.value = false
+    // 模拟识别结果
+    speechResult.value = currentQuestion.value.text || '识别结果'
+    speechAccuracy.value = Math.floor(Math.random() * 30) + 70 // 70-100%
+    
+    // 生成发音反馈
+    const words = currentQuestion.value.text?.split(' ') || []
+    pronunciationFeedback.value = words.map(word => ({
+      word,
+      status: Math.random() > 0.3 ? 'correct' : 'incorrect'
+    }))
+    
+    soundEffectsRef.value?.playSound('success')
+  }, 2000)
+}
+
+const playRecording = () => {
+  playingRecording.value = true
+  soundEffectsRef.value?.playSound('click')
+  setTimeout(() => {
+    playingRecording.value = false
+  }, 2000)
+}
+
+const clearRecording = () => {
+  recordedAudio.value = null
+  speechResult.value = ''
+  speechAccuracy.value = 0
+  pronunciationFeedback.value = []
+  soundEffectsRef.value?.playSound('whoosh')
+}
+
+const getAccuracyClass = (accuracy: number) => {
+  if (accuracy >= 90) return 'text-green-500'
+  if (accuracy >= 70) return 'text-blue-500'
+  if (accuracy >= 50) return 'text-yellow-500'
+  return 'text-red-500'
+}
+
+// 填空练习游戏方法
+const updateBlankAnswer = (blankIndex: number, value: string) => {
+  blankAnswers.value[blankIndex] = value
+}
+
+const selectOption = (option: string) => {
+  if (usedOptions.value.includes(option)) return
+  
+  // 找到第一个空白处填入
+  const emptyBlank = passageParts.value.find(part => 
+    part.type === 'blank' && !part.userInput
+  )
+  
+  if (emptyBlank) {
+    emptyBlank.userInput = option
+    usedOptions.value.push(option)
+    soundEffectsRef.value?.playSound('pop')
+  }
+}
+
+const showAllHints = () => {
+  passageParts.value.forEach(part => {
+    if (part.type === 'blank') {
+      part.showHint = true
+    }
+  })
+  allHintsShown.value = true
+  soundEffectsRef.value?.playSound('click')
+}
+
+const checkAnswers = () => {
+  passageParts.value.forEach(part => {
+    if (part.type === 'blank') {
+      part.showFeedback = true
+      part.isCorrect = part.userInput === part.correctAnswer
+    }
+  })
+  soundEffectsRef.value?.playSound('click')
+}
+
+// 计算属性
+const filledBlanks = computed(() => {
+  return passageParts.value.filter(part => 
+    part.type === 'blank' && part.userInput
+  ).length
+})
+
+const totalBlanks = computed(() => {
+  return passageParts.value.filter(part => part.type === 'blank').length
+})
+
+// 图片描述游戏方法
+const addWordToDescription = (word: string) => {
+  if (imageDescription.value) {
+    imageDescription.value += ' ' + word
+  } else {
+    imageDescription.value = word
+  }
+  soundEffectsRef.value?.playSound('pop')
+}
+
+const getWordSuggestions = () => {
+  loadingSuggestions.value = true
+  
+  // 模拟获取词汇建议
+  setTimeout(() => {
+    wordSuggestions.value = [
+      'beautiful', 'colorful', 'happy', 'playing', 'garden',
+      'sunshine', 'flowers', 'children', 'running', 'laughing'
+    ]
+    loadingSuggestions.value = false
+    soundEffectsRef.value?.playSound('success')
+  }, 1000)
+}
+
+const clearDescription = () => {
+  imageDescription.value = ''
+  soundEffectsRef.value?.playSound('whoosh')
+}
+
+// 单词连线游戏方法
+const selectWord = (index: number) => {
+  if (wordMatches.value[index] !== undefined) return
+  soundEffectsRef.value?.playSound('click')
+  
+  if (selectedWordIndex.value === index) {
+    selectedWordIndex.value = null
+  } else {
+    selectedWordIndex.value = index
+    if (selectedMeaningIndex.value !== null) {
+      createMatch(index, selectedMeaningIndex.value)
+    }
+  }
+}
+
+const selectMeaning = (index: number) => {
+  if (meaningMatches.value[index] !== undefined) return
+  soundEffectsRef.value?.playSound('click')
+  
+  if (selectedMeaningIndex.value === index) {
+    selectedMeaningIndex.value = null
+  } else {
+    selectedMeaningIndex.value = index
+    if (selectedWordIndex.value !== null) {
+      createMatch(selectedWordIndex.value, index)
+    }
+  }
+}
+
+const createMatch = (wordIndex: number, meaningIndex: number) => {
+  wordMatches.value[wordIndex] = meaningIndex
+  meaningMatches.value[meaningIndex] = wordIndex
+  
+  // 创建连线
+  updateConnectionLines()
+  
+  // 重置选择
+  selectedWordIndex.value = null
+  selectedMeaningIndex.value = null
+  
+  soundEffectsRef.value?.playSound('success')
+}
+
+const updateConnectionLines = () => {
+  // 这里应该计算连线的坐标
+  // 简化实现，实际需要根据DOM元素位置计算
+  connectionLines.value = Object.entries(wordMatches.value).map(([wordIdx, meaningIdx]) => ({
+    x1: 100,
+    y1: parseInt(wordIdx) * 60 + 30,
+    x2: 200,
+    y2: parseInt(meaningIdx) * 60 + 30,
+    correct: true
+  }))
+}
+
+const clearMatches = () => {
+  wordMatches.value = {}
+  meaningMatches.value = {}
+  connectionLines.value = []
+  selectedWordIndex.value = null
+  selectedMeaningIndex.value = null
+  soundEffectsRef.value?.playSound('whoosh')
+}
+
+const showMatchingHint = () => {
+  message.info('提示：仔细观察单词的词性和含义')
+  soundEffectsRef.value?.playSound('click')
+}
+
+const submitMatching = () => {
+  // 检查答案逻辑
+  submitAnswer()
+}
+
+// 单词拼图游戏方法
+const selectPuzzleLetter = (index: number) => {
+  if (puzzleLetters.value[index]?.used) return
+  
+  const letter = puzzleLetters.value[index]
+  if (selectedLetters.value.includes(index)) {
+    // 取消选择
+    selectedLetters.value = selectedLetters.value.filter(i => i !== index)
+    const wordIndex = constructedWord.value.findIndex(c => c === letter.char)
+    if (wordIndex !== -1) {
+      constructedWord.value[wordIndex] = ''
+    }
+  } else {
+    // 选择字母
+    const emptyIndex = constructedWord.value.findIndex(c => !c)
+    if (emptyIndex !== -1) {
+      selectedLetters.value.push(index)
+      constructedWord.value[emptyIndex] = letter.char
+      letter.used = true
+    }
+  }
+  
+  soundEffectsRef.value?.playSound('pop')
+}
+
+const clearPuzzle = () => {
+  selectedLetters.value = []
+  constructedWord.value = Array(currentQuestion.value.answer.length).fill('')
+  puzzleLetters.value.forEach(letter => {
+    letter.used = false
+  })
+  soundEffectsRef.value?.playSound('whoosh')
+}
+
+const getPuzzleHint = () => {
+  const hints = [
+    '这个单词的第一个字母是 ' + currentQuestion.value.answer[0],
+    '这个单词有 ' + currentQuestion.value.answer.length + ' 个字母',
+    '提示：' + currentQuestion.value.hint
+  ]
+  
+  const newHint = hints[puzzleHints.value.length]
+  if (newHint && !puzzleHints.value.includes(newHint)) {
+    puzzleHints.value.push(newHint)
+    soundEffectsRef.value?.playSound('click')
+  }
+}
+
+const submitPuzzle = () => {
+  // 检查拼图答案
+  const userAnswer = constructedWord.value.join('')
+  if (userAnswer === currentQuestion.value.answer) {
+    soundEffectsRef.value?.playSuccessSequence()
+  } else {
+    soundEffectsRef.value?.playErrorSequence()
+  }
+  submitAnswer()
+}
+
+// 图片选择游戏方法
+const submitImageChoice = () => {
+  if (selectedImageIndex.value === null) return
+  
+  const selectedOption = currentQuestion.value.imageOptions[selectedImageIndex.value]
+  showImageFeedback.value = true
+  
+  if (selectedOption.correct) {
+    soundEffectsRef.value?.playSuccessSequence()
+  } else {
+    soundEffectsRef.value?.playErrorSequence()
+  }
+  
+  setTimeout(() => {
+    submitAnswer()
+  }, 1500)
+}
+</script>
+
+<style scoped lang="scss">
+.game-interface {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  
+  .game-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+  }
+  
+  .game-header {
+    background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      
+      .game-icon {
+        width: 48px;
+        height: 48px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+      }
+      
+      .game-info {
+        h2 {
+          margin: 0;
+          font-size: 24px;
+          font-weight: 600;
+        }
+        
+        .game-meta {
+          display: flex;
+          gap: 16px;
+          margin-top: 4px;
+          font-size: 14px;
+          opacity: 0.9;
+        }
+      }
+    }
+    
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      
+      .score-display {
+        text-align: center;
+        
+        .score-label {
+          font-size: 12px;
+          opacity: 0.8;
+        }
+        
+        .score-value {
+          font-size: 20px;
+          font-weight: 600;
+        }
+      }
+      
+      .game-controls {
+        display: flex;
+        gap: 8px;
+      }
+    }
+  }
+  
+  .game-progress {
+    padding: 16px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      
+      .question-counter {
+        font-weight: 500;
+        color: #495057;
+      }
+      
+      .time-display {
+        color: #6c757d;
+        font-size: 14px;
+      }
+    }
+  }
+  
+  .game-content {
+    padding: 32px;
+    min-height: 400px;
+    
+    .question-container {
+      margin-bottom: 32px;
+      
+      .question-text {
+        font-size: 20px;
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 24px;
+        text-align: center;
+        line-height: 1.6;
+      }
+      
+      .question-audio {
+        text-align: center;
+        margin-bottom: 24px;
+      }
+      
+      .question-image {
+        text-align: center;
+        margin-bottom: 24px;
+        
+        img {
+          max-width: 300px;
+          max-height: 200px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+      }
+    }
+  }
+  
+  // 拼写游戏样式
+  .spelling-game {
+    .word-display {
+      text-align: center;
+      margin-bottom: 32px;
+      
+      .target-word {
+        font-size: 32px;
+        font-weight: 600;
+        color: #1890ff;
+        margin-bottom: 16px;
+        letter-spacing: 4px;
+      }
+      
+      .word-pronunciation {
+        color: #666;
+        font-style: italic;
+        margin-bottom: 8px;
+      }
+      
+      .word-meaning {
+        color: #333;
+        font-size: 16px;
+      }
+    }
+    
+    .spelling-input {
+      text-align: center;
+      margin-bottom: 24px;
+      
+      .letter-input {
+        font-size: 24px;
+        text-align: center;
+        letter-spacing: 8px;
+        border-radius: 8px;
+        
+        &.correct {
+          border-color: #52c41a;
+          background: #f6ffed;
+        }
+        
+        &.incorrect {
+          border-color: #ff4d4f;
+          background: #fff2f0;
+        }
+      }
+    }
+    
+    .letter-keyboard {
+      .keyboard-row {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        
+        .letter-key {
+          min-width: 40px;
+          height: 40px;
+          border-radius: 8px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+          
+          &:hover {
+            transform: translateY(-2px);
+          }
+          
+          &.used {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+        }
+      }
+    }
+  }
+  
+  // 听力游戏样式
+  .listening-game {
+    .audio-controls {
+      text-align: center;
+      margin-bottom: 32px;
+      
+      .play-button {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        font-size: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+        
+        &.playing {
+          animation: pulse 1s infinite;
+        }
+      }
+      
+      .audio-hint {
+        color: #666;
+        font-size: 14px;
+      }
+    }
+    
+    .answer-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      
+      .option-card {
+        padding: 20px;
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+        
+        &:hover {
+          border-color: #1890ff;
+          transform: translateY(-2px);
+        }
+        
+        &.selected {
+          border-color: #1890ff;
+          background: #f0f8ff;
+        }
+        
+        &.correct {
+          border-color: #52c41a;
+          background: #f6ffed;
+        }
+        
+        &.incorrect {
+          border-color: #ff4d4f;
+          background: #fff2f0;
+        }
+      }
+    }
+  }
+  
+  // 语法游戏样式
+  .grammar-game {
+    .sentence-container {
+      background: #f8f9fa;
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      
+      .sentence-text {
+        font-size: 18px;
+        line-height: 1.8;
+        color: #333;
+        
+        .grammar-blank {
+          display: inline-block;
+          min-width: 100px;
+          padding: 4px 8px;
+          margin: 0 4px;
+          border: 2px dashed #1890ff;
+          border-radius: 4px;
+          background: white;
+          cursor: pointer;
+          
+          &.filled {
+            border-style: solid;
+            background: #f0f8ff;
+          }
+          
+          &.correct {
+            border-color: #52c41a;
+            background: #f6ffed;
+          }
+          
+          &.incorrect {
+            border-color: #ff4d4f;
+            background: #fff2f0;
+          }
+        }
+      }
+    }
+    
+    .grammar-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      
+      .grammar-option {
+        padding: 8px 16px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        
+        &:hover {
+          transform: translateY(-2px);
+        }
+        
+        &.used {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+  
+  // 阅读游戏样式
+  .reading-game {
+    .reading-content {
+      display: flex;
+      gap: 32px;
+      
+      .passage-section {
+        flex: 1;
+        
+        .passage-title {
+          font-size: 20px;
+          font-weight: 600;
+          color: #333;
+          margin-bottom: 16px;
+        }
+        
+        .passage-text {
+          background: #f8f9fa;
+          padding: 24px;
+          border-radius: 12px;
+          line-height: 1.8;
+          font-size: 16px;
+          color: #333;
+        }
+      }
+      
+      .questions-section {
+        flex: 1;
+        
+        .question-item {
+          background: white;
+          border: 1px solid #e9ecef;
+          border-radius: 8px;
+          padding: 20px;
+          margin-bottom: 16px;
+          
+          .question-title {
+            font-weight: 500;
+            margin-bottom: 12px;
+            color: #333;
+          }
+          
+          .question-options {
+            .option-item {
+              padding: 8px 12px;
+              border-radius: 6px;
+              cursor: pointer;
+              transition: all 0.3s ease;
+              margin-bottom: 8px;
+              
+              &:hover {
+                background: #f0f8ff;
+              }
+              
+              &.selected {
+                background: #1890ff;
+                color: white;
+              }
+              
+              &.correct {
+                background: #52c41a;
+                color: white;
+              }
+              
+              &.incorrect {
+                background: #ff4d4f;
+                color: white;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // 词汇游戏样式
+  .vocabulary-game {
+    .image-matching {
+      .target-word-display {
+        text-align: center;
+        margin-bottom: 24px;
+        
+        .word-card {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 24px;
+          border-radius: 16px;
+          display: inline-block;
+          
+          .word-text {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+          }
+          
+          .word-pronunciation {
+            font-size: 16px;
+            opacity: 0.9;
+          }
+        }
+      }
+      
+      .image-options {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        
+        .image-option {
+          background: white;
+          border: 3px solid #e9ecef;
+          border-radius: 12px;
+          padding: 16px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          text-align: center;
+          
+          &:hover {
+            border-color: #1890ff;
+            transform: translateY(-4px);
+          }
+          
+          &.selected {
+            border-color: #1890ff;
+            background: #f0f8ff;
+          }
+          
+          &.correct {
+            border-color: #52c41a;
+            background: #f6ffed;
+          }
+          
+          &.incorrect {
+            border-color: #ff4d4f;
+            background: #fff2f0;
+          }
+          
+          img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 12px;
+          }
+          
+          .option-text {
+            font-weight: 500;
+            color: #333;
+          }
+        }
+      }
+    }
+    
+    .meaning-matching {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      
+      .words-column, .meanings-column {
+        h4 {
+          text-align: center;
+          margin-bottom: 20px;
+          color: #333;
+        }
+        
+        .match-item {
+          background: white;
+          border: 2px solid #e9ecef;
+          border-radius: 8px;
+          padding: 16px;
+          margin-bottom: 12px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          
+          &:hover {
+            border-color: #1890ff;
+          }
+          
+          &.selected {
+            border-color: #1890ff;
+            background: #f0f8ff;
+          }
+          
+          &.matched {
+            border-color: #52c41a;
+            background: #f6ffed;
+            cursor: default;
+          }
+          
+          &.incorrect {
+            border-color: #ff4d4f;
+            background: #fff2f0;
+          }
+        }
+      }
+    }
+  }
+  
+  // 游戏完成样式
+  .game-finished {
+    text-align: center;
+    padding: 40px;
+    
+    .finish-content {
+      max-width: 600px;
+      margin: 0 auto;
+      
+      .completion-icon {
+        font-size: 64px;
+        margin-bottom: 24px;
+        animation: bounce 1s ease-in-out;
+      }
+      
+      .finish-title {
+        font-size: 32px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 16px;
+      }
+      
+      .finish-subtitle {
+        font-size: 18px;
+        color: #666;
+        margin-bottom: 32px;
+      }
+      
+      .game-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 20px;
+        margin-bottom: 32px;
+        
+        .stat-item {
+          background: #f8f9fa;
+          padding: 20px;
+          border-radius: 12px;
+          
+          .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1890ff;
+            margin-bottom: 4px;
+          }
+          
+          .stat-label {
+            font-size: 14px;
+            color: #666;
+          }
+        }
+      }
+      
+      .earned-stars {
+        margin-bottom: 24px;
+        
+        .stars-display {
+          display: flex;
+          justify-content: center;
+          gap: 8px;
+          font-size: 32px;
+          
+          .star {
+            color: #ffd700;
+            animation: starTwinkle 1s ease-in-out infinite alternate;
+            
+            &:nth-child(2) {
+              animation-delay: 0.2s;
+            }
+            
+            &:nth-child(3) {
+              animation-delay: 0.4s;
+            }
+          }
+        }
+      }
+      
+      .earned-badges {
+        margin-bottom: 32px;
+        
+        .badges-list {
+          display: flex;
+          justify-content: center;
+          gap: 16px;
+          flex-wrap: wrap;
+          
+          .badge-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 20px;
+            font-weight: 500;
+            animation: badgeAppear 0.5s ease-out;
+          }
+        }
+      }
+      
+      .learning-suggestions {
+        background: #f0f8ff;
+        padding: 24px;
+        border-radius: 12px;
+        margin-bottom: 32px;
+        
+        h4 {
+          color: #1890ff;
+          margin-bottom: 16px;
+        }
+        
+        .suggestions-list {
+          text-align: left;
+          
+          .suggestion-item {
+            padding: 8px 0;
+            color: #333;
+            border-bottom: 1px solid #e6f7ff;
+            
+            &:last-child {
+              border-bottom: none;
+            }
+          }
+        }
+      }
+      
+      .finish-actions {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+    }
+  }
+  
+  // 反馈模态框样式
+  .feedback-modal {
+    .feedback-content {
+      text-align: center;
+      padding: 20px;
+      
+      .feedback-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        
+        &.correct {
+          color: #52c41a;
+        }
+        
+        &.incorrect {
+          color: #ff4d4f;
+        }
+      }
+      
+      .feedback-message {
+        font-size: 18px;
+        font-weight: 500;
+        margin-bottom: 16px;
+        
+        &.correct {
+          color: #52c41a;
+        }
+        
+        &.incorrect {
+          color: #ff4d4f;
+        }
+      }
+      
+      .feedback-explanation {
+        color: #666;
+        margin-bottom: 20px;
+      }
+    }
+  }
+  
+  // 点数动画
+  .point-animation {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    font-size: 24px;
+    font-weight: 600;
+    color: #52c41a;
+    animation: pointFloat 2s ease-out forwards;
+  }
+  
+  // 连击效果
+  .streak-effect {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    pointer-events: none;
+    
+    .streak-text {
+      font-size: 32px;
+      font-weight: 600;
+      color: #ff6b35;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      animation: streakPulse 1s ease-out;
+    }
+    
+    .multiplier-text {
+      font-size: 24px;
+      color: #1890ff;
+      animation: multiplierBounce 1s ease-out;
+    }
+  }
+  
+  // 句子排序游戏样式
+  .sentence-order-game {
+    .instruction {
+      text-align: center;
+      margin-bottom: 20px;
+      
+      p {
+        color: #666;
+        font-size: 16px;
+      }
+    }
+    
+    .sentence-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f0f8ff;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 16px 0;
+      color: #1890ff;
+      font-weight: 500;
+    }
+    
+    .word-bank {
+      margin-bottom: 24px;
+      
+      h4 {
+        margin-bottom: 12px;
+        color: #333;
+      }
+      
+      .word-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        min-height: 60px;
+        padding: 12px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 2px dashed #d9d9d9;
+        
+        .word-item {
+          background: #1890ff;
+          color: white;
+          padding: 8px 16px;
+          border-radius: 20px;
+          cursor: pointer;
+          user-select: none;
+          transition: all 0.3s ease;
+          
+          &:hover {
+            background: #40a9ff;
+            transform: translateY(-2px);
+          }
+          
+          &.used {
+            background: #d9d9d9;
+            color: #999;
+            cursor: not-allowed;
+            
+            &:hover {
+              transform: none;
+            }
+          }
+          
+          &.draggable {
+            cursor: grab;
+            
+            &:active {
+              cursor: grabbing;
+            }
+          }
+        }
+      }
+    }
+    
+    .sentence-builder {
+      h4 {
+        margin-bottom: 12px;
+        color: #333;
+      }
+      
+      .drop-zone {
+        min-height: 80px;
+        padding: 16px;
+        background: #fff;
+        border: 2px dashed #52c41a;
+        border-radius: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        
+        .sentence-word {
+          background: #52c41a;
+          color: white;
+          padding: 8px 16px;
+          border-radius: 20px;
+          cursor: pointer;
+          user-select: none;
+          display: flex;
+          align-items: center;
+          transition: all 0.3s ease;
+          
+          &:hover {
+            background: #73d13d;
+            
+            .remove-icon {
+              opacity: 1;
+            }
+          }
+          
+          .remove-icon {
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+          }
+        }
+        
+        .drop-placeholder {
+          color: #999;
+          font-style: italic;
+          text-align: center;
+          width: 100%;
+        }
+      }
+    }
+  }
+  
+  // 语音识别游戏样式
+  .speech-game {
+    .target-text {
+      text-align: center;
+      margin-bottom: 24px;
+      
+      .text-to-read {
+        background: #f0f8ff;
+        padding: 24px;
+        border-radius: 12px;
+        
+        h4 {
+          margin-bottom: 16px;
+          color: #333;
+        }
+        
+        .reading-text {
+          font-size: 20px;
+          font-weight: 500;
+          color: #1890ff;
+          margin-bottom: 12px;
+          line-height: 1.6;
+        }
+        
+        .pronunciation-guide {
+          .phonetic {
+            color: #666;
+            font-style: italic;
+          }
+        }
+      }
+    }
+    
+    .speech-controls {
+      text-align: center;
+      margin-bottom: 24px;
+      
+      .recording-area {
+        margin-bottom: 16px;
+        
+        .record-button {
+          height: 60px;
+          font-size: 16px;
+          font-weight: 500;
+          border-radius: 30px;
+          min-width: 180px;
+        }
+        
+        .recording-indicator {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-top: 16px;
+          color: #ff4d4f;
+          font-weight: 500;
+          
+          .pulse-dot {
+            width: 12px;
+            height: 12px;
+            background: #ff4d4f;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 1s infinite;
+          }
+        }
+      }
+      
+      .playback-controls {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+      }
+    }
+    
+    .speech-result {
+      background: #f6ffed;
+      border: 1px solid #b7eb8f;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+      
+      .result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        
+        h4 {
+          margin: 0;
+          color: #333;
+        }
+        
+        .accuracy-score {
+          .score-label {
+            margin-right: 8px;
+            color: #666;
+          }
+          
+          .score-value {
+            font-weight: 600;
+            font-size: 18px;
+          }
+        }
+      }
+      
+      .text-comparison {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+        
+        h5 {
+          margin-bottom: 8px;
+          color: #333;
+        }
+        
+        p {
+          background: white;
+          padding: 12px;
+          border-radius: 6px;
+          margin: 0;
+          border-left: 4px solid #1890ff;
+        }
+        
+        .recognized-text p {
+          border-left-color: #52c41a;
+        }
+      }
+      
+      .pronunciation-feedback {
+        .feedback-items {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          
+          .feedback-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 14px;
+            
+            &.correct {
+              background: #f6ffed;
+              color: #52c41a;
+              border: 1px solid #b7eb8f;
+            }
+            
+            &.incorrect {
+              background: #fff2f0;
+              color: #ff4d4f;
+              border: 1px solid #ffccc7;
+            }
+            
+            .word {
+              margin-right: 6px;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // 填空练习游戏样式
+  .fill-blanks-game {
+    .passage-container {
+      margin-bottom: 24px;
+      
+      .passage-text {
+        background: white;
+        padding: 24px;
+        border-radius: 8px;
+        line-height: 1.8;
+        font-size: 16px;
+        
+        .passage-part {
+          .blank-container {
+            display: inline-block;
+            position: relative;
+            margin: 0 4px;
+            
+            .blank-input {
+              width: 120px;
+              text-align: center;
+              border-radius: 4px;
+              
+              &.correct {
+                border-color: #52c41a;
+                background: #f6ffed;
+              }
+              
+              &.incorrect {
+                border-color: #ff4d4f;
+                background: #fff2f0;
+              }
+            }
+            
+            .blank-hint {
+              position: absolute;
+              top: 100%;
+              left: 50%;
+              transform: translateX(-50%);
+              background: #1890ff;
+              color: white;
+              padding: 4px 8px;
+              border-radius: 4px;
+              font-size: 12px;
+              white-space: nowrap;
+              margin-top: 4px;
+              z-index: 10;
+              
+              &::before {
+                content: '';
+                position: absolute;
+                top: -4px;
+                left: 50%;
+                transform: translateX(-50%);
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-bottom: 4px solid #1890ff;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    .word-options {
+      margin-bottom: 24px;
+      
+      h4 {
+        margin-bottom: 12px;
+        color: #333;
+      }
+      
+      .option-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        
+        .word-option {
+          cursor: pointer;
+          transition: all 0.3s ease;
+          
+          &:hover {
+            transform: translateY(-2px);
+          }
+          
+          &.used {
+            opacity: 0.5;
+            cursor: not-allowed;
+            
+            &:hover {
+              transform: none;
+            }
+          }
+        }
+      }
+    }
+    
+    .fill-progress {
+      margin-bottom: 16px;
+      
+      .progress-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        
+        span {
+          color: #666;
+          font-size: 14px;
+        }
+      }
+    }
+  }
+  
+  // 图片描述游戏样式
+  .image-description-game {
+    .image-container {
+      text-align: center;
+      margin-bottom: 24px;
+      
+      .description-image {
+        max-width: 100%;
+        max-height: 300px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        margin-bottom: 16px;
+      }
+      
+      .image-info {
+        .image-title {
+          font-size: 18px;
+          font-weight: 600;
+          color: #333;
+          margin-bottom: 8px;
+        }
+        
+        .image-prompt {
+          color: #666;
+          font-size: 14px;
+        }
+      }
+    }
+    
+    .description-input {
+      margin-bottom: 24px;
+      
+      h4 {
+        margin-bottom: 12px;
+        color: #333;
+      }
+      
+      .description-textarea {
+        border-radius: 8px;
+        
+        &:focus {
+          border-color: #1890ff;
+          box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+      }
+    }
+    
+    .description-tools {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+      
+      .word-suggestions {
+        h5 {
+          margin-bottom: 12px;
+          color: #333;
+        }
+        
+        .suggestion-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          
+          .suggestion-word {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            
+            &:hover {
+              transform: translateY(-2px);
+            }
+          }
+        }
+      }
+      
+      .description-requirements {
+        h5 {
+          margin-bottom: 12px;
+          color: #333;
+        }
+        
+        .requirement-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          
+          .requirement-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            color: #666;
+            font-size: 14px;
+            
+            &:last-child {
+              border-bottom: none;
+            }
+            
+            &::before {
+              content: '✓';
+              color: #52c41a;
+              margin-right: 8px;
+              font-weight: bold;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // 动画效果
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.2);
+      opacity: 0.7;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes pointFloat {
+    0% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-100px);
+    }
+  }
+  
+  @keyframes streakPulse {
+    0% {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.2);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes multiplierBounce {
+    0% {
+      transform: scale(0.5) translateY(20px);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.1) translateY(-10px);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1) translateY(0);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes iconPulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+  
+  @keyframes scoreUp {
+    0% {
+      transform: translateY(0) scale(1);
+    }
+    50% {
+      transform: translateY(-10px) scale(1.1);
+    }
+    100% {
+      transform: translateY(0) scale(1);
+    }
+  }
+  
+  @keyframes badgeAppear {
+    0% {
+      transform: scale(0) rotate(-180deg);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes bounce {
+    0%, 20%, 53%, 80%, 100% {
+      transform: translate3d(0, 0, 0);
+    }
+    40%, 43% {
+      transform: translate3d(0, -30px, 0);
+    }
+    70% {
+      transform: translate3d(0, -15px, 0);
+    }
+    90% {
+      transform: translate3d(0, -4px, 0);
+    }
+  }
+  
+  @keyframes starTwinkle {
+    0% {
+      transform: scale(1);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(1.2);
+      opacity: 1;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .game-header {
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .reading-game {
+      .reading-content {
+        flex-direction: column;
+      }
+    }
+
+    .letter-keyboard {
+      .keyboard-row {
+        justify-content: center;
+        
+        .letter-key {
+          min-width: 32px;
+          height: 32px;
+          font-size: 14px;
+        }
+      }
+    }
+
+    .game-finished {
+      .finish-content {
+        padding: 16px;
+      }
+    }
+    
+    // 新游戏类型的响应式样式
+    .sentence-order-game {
+      .word-bank .word-list {
+        justify-content: center;
+      }
+      
+      .sentence-builder .drop-zone {
+        justify-content: center;
+      }
+    }
+    
+    .speech-game {
+      .text-comparison {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+    }
+    
+    .fill-blanks-game {
+      .passage-text {
+        padding: 16px;
+        font-size: 14px;
+        
+        .blank-input {
+          width: 100px;
+        }
+      }
+    }
+    
+    .image-description-game {
+      .description-tools {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+    }
+  }
+}
+</style>

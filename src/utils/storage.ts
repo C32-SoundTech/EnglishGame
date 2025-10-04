@@ -1,557 +1,433 @@
 /**
  * 本地存储工具类
- * 提供统一的数据存储和同步功能
+ * 提供统一的数据存储和管理功能
  */
 
+// 存储键名常量
+export const STORAGE_KEYS = {
+  // 用户数据
+  USER_PROFILE: 'user_profile',
+  USER_SETTINGS: 'user_settings',
+  USER_PREFERENCES: 'user_preferences',
+  
+  // 学习数据
+  LEARNING_PROGRESS: 'learning_progress',
+  ASSESSMENT_RESULTS: 'assessment_results',
+  SKILL_SCORES: 'skill_scores',
+  LEARNING_HISTORY: 'learning_history',
+  
+  // 游戏数据
+  GAME_SCORES: 'game_scores',
+  GAME_ACHIEVEMENTS: 'game_achievements',
+  GAME_STATISTICS: 'game_statistics',
+  
+  // 徽章和成就
+  BADGES: 'badges',
+  ACHIEVEMENTS: 'achievements',
+  UNLOCKED_CONTENT: 'unlocked_content',
+  
+  // 推荐系统
+  RECOMMENDATIONS: 'recommendations',
+  RECOMMENDATION_HISTORY: 'recommendation_history',
+  
+  // 应用状态
+  APP_STATE: 'app_state',
+  CACHE_DATA: 'cache_data',
+  OFFLINE_DATA: 'offline_data'
+} as const
+
+// 数据类型定义
 export interface UserProfile {
   id: string
   name: string
-  age: number
-  grade: string
   avatar?: string
-  learningGoals: string[]
-  interests: string[]
-  bio: string
-  createdAt: Date
-  updatedAt: Date
+  level: number
+  experience: number
+  joinDate: Date
+  lastLoginDate: Date
+}
+
+export interface UserSettings {
+  theme: 'light' | 'dark' | 'auto'
+  language: 'zh-CN' | 'en-US'
+  soundEnabled: boolean
+  animationEnabled: boolean
+  notificationEnabled: boolean
+  autoSave: boolean
+  difficulty: 'easy' | 'medium' | 'hard'
 }
 
 export interface LearningProgress {
-  userId: string
-  totalPoints: number
-  level: number
-  consecutiveDays: number
+  totalStudyTime: number
   completedLessons: number
-  totalLessons: number
-  skillLevels: {
-    listening: number
-    speaking: number
-    reading: number
-    writing: number
-  }
-  achievements: Achievement[]
-  lastStudyDate: Date
-  studyStreak: number
+  currentStreak: number
+  longestStreak: number
+  skillLevels: Record<string, number>
+  weeklyGoal: number
+  weeklyProgress: number
 }
 
-export interface Achievement {
+export interface AssessmentResult {
   id: string
-  title: string
-  description: string
-  icon: string
-  earnedAt: Date
-  points: number
-  category: 'study' | 'streak' | 'skill' | 'special'
-}
-
-export interface StudySession {
-  id: string
-  userId: string
-  startTime: Date
-  endTime: Date
-  duration: number // 分钟
-  gameType: string
+  type: 'listening' | 'speaking' | 'reading' | 'writing'
   score: number
-  pointsEarned: number
-  correctAnswers: number
-  totalQuestions: number
-  skillsImproved: string[]
+  maxScore: number
+  completedAt: Date
+  timeSpent: number
+  answers: any[]
+  skillBreakdown: Record<string, number>
 }
 
-export interface LearningGoal {
-  id: string
-  userId: string
-  title: string
-  description: string
-  targetValue: number
-  currentValue: number
-  unit: string // 'minutes', 'points', 'lessons'
-  deadline: Date
-  completed: boolean
-  createdAt: Date
-}
-
-export interface NotificationSettings {
-  studyReminder: boolean
-  achievementNotification: boolean
-  systemMessage: boolean
-  soundAlert: boolean
-  reminderTime: string
-  dailyGoalReminder: boolean
-}
-
-// 存储键名常量
-const STORAGE_KEYS = {
-  USER_PROFILE: 'english_platform_user_profile',
-  LEARNING_PROGRESS: 'english_platform_learning_progress',
-  STUDY_SESSIONS: 'english_platform_study_sessions',
-  LEARNING_GOALS: 'english_platform_learning_goals',
-  NOTIFICATION_SETTINGS: 'english_platform_notification_settings',
-  GAME_SETTINGS: 'english_platform_game_settings',
-  LAST_SYNC: 'english_platform_last_sync',
-  OFFLINE_QUEUE: 'english_platform_offline_queue'
-} as const
-
-/**
- * 本地存储管理类
- */
+// 存储管理类
 class StorageManager {
-  private syncQueue: Array<{ key: string; data: any; timestamp: number }> = []
-  private isOnline = navigator.onLine
-
-  constructor() {
-    // 监听网络状态
-    window.addEventListener('online', () => {
-      this.isOnline = true
-      this.syncOfflineData()
-    })
-    
-    window.addEventListener('offline', () => {
-      this.isOnline = false
-    })
-
-    // 加载离线队列
-    this.loadOfflineQueue()
-  }
-
+  private prefix = 'english_platform_'
+  
   /**
-   * 存储数据
+   * 设置数据到本地存储
    */
-  setItem<T>(key: string, data: T): void {
+  setItem<T>(key: string, value: T): boolean {
     try {
-      const serializedData = JSON.stringify({
-        data,
+      const serializedValue = JSON.stringify({
+        data: value,
         timestamp: Date.now(),
         version: '1.0'
       })
-      localStorage.setItem(key, serializedData)
-
-      // 如果离线，添加到同步队列
-      if (!this.isOnline) {
-        this.addToSyncQueue(key, data)
-      }
+      localStorage.setItem(this.prefix + key, serializedValue)
+      return true
     } catch (error) {
-      console.error('存储数据失败:', error)
-      throw new Error('存储空间不足或数据格式错误')
+      console.error('Failed to save to localStorage:', error)
+      return false
     }
   }
-
+  
   /**
-   * 获取数据
+   * 从本地存储获取数据
    */
-  getItem<T>(key: string): T | null {
+  getItem<T>(key: string, defaultValue?: T): T | null {
     try {
-      const item = localStorage.getItem(key)
-      if (!item) return null
-
+      const item = localStorage.getItem(this.prefix + key)
+      if (!item) {
+        return defaultValue || null
+      }
+      
       const parsed = JSON.parse(item)
       return parsed.data as T
     } catch (error) {
-      console.error('读取数据失败:', error)
-      return null
+      console.error('Failed to read from localStorage:', error)
+      return defaultValue || null
     }
   }
-
+  
   /**
-   * 删除数据
+   * 删除本地存储数据
    */
-  removeItem(key: string): void {
-    localStorage.removeItem(key)
-  }
-
-  /**
-   * 清空所有数据
-   */
-  clear(): void {
-    Object.values(STORAGE_KEYS).forEach(key => {
-      localStorage.removeItem(key)
-    })
-    this.syncQueue = []
-    this.saveOfflineQueue()
-  }
-
-  /**
-   * 获取存储大小
-   */
-  getStorageSize(): { used: number; total: number } {
-    let used = 0
-    for (let key in localStorage) {
-      if (localStorage.hasOwnProperty(key)) {
-        used += localStorage[key].length + key.length
-      }
-    }
-    
-    // 估算总容量（通常为5-10MB）
-    const total = 5 * 1024 * 1024 // 5MB
-    
-    return { used, total }
-  }
-
-  /**
-   * 添加到同步队列
-   */
-  private addToSyncQueue(key: string, data: any): void {
-    this.syncQueue.push({
-      key,
-      data,
-      timestamp: Date.now()
-    })
-    this.saveOfflineQueue()
-  }
-
-  /**
-   * 保存离线队列
-   */
-  private saveOfflineQueue(): void {
+  removeItem(key: string): boolean {
     try {
-      localStorage.setItem(STORAGE_KEYS.OFFLINE_QUEUE, JSON.stringify(this.syncQueue))
+      localStorage.removeItem(this.prefix + key)
+      return true
     } catch (error) {
-      console.error('保存离线队列失败:', error)
+      console.error('Failed to remove from localStorage:', error)
+      return false
     }
   }
-
+  
   /**
-   * 加载离线队列
+   * 清空所有应用数据
    */
-  private loadOfflineQueue(): void {
+  clear(): boolean {
     try {
-      const queue = localStorage.getItem(STORAGE_KEYS.OFFLINE_QUEUE)
-      if (queue) {
-        this.syncQueue = JSON.parse(queue)
-      }
+      const keys = Object.keys(localStorage)
+      keys.forEach(key => {
+        if (key.startsWith(this.prefix)) {
+          localStorage.removeItem(key)
+        }
+      })
+      return true
     } catch (error) {
-      console.error('加载离线队列失败:', error)
-      this.syncQueue = []
+      console.error('Failed to clear localStorage:', error)
+      return false
     }
   }
-
+  
   /**
-   * 同步离线数据
+   * 获取存储使用情况
    */
-  private async syncOfflineData(): Promise<void> {
-    if (this.syncQueue.length === 0) return
-
+  getStorageInfo(): {
+    used: number
+    available: number
+    total: number
+    percentage: number
+  } {
     try {
-      // 这里可以实现与服务器的同步逻辑
-      console.log('开始同步离线数据:', this.syncQueue.length, '条记录')
+      let used = 0
+      const keys = Object.keys(localStorage)
       
-      // 模拟同步过程
-      for (const item of this.syncQueue) {
-        await this.syncToServer(item.key, item.data)
-      }
-
-      // 清空同步队列
-      this.syncQueue = []
-      this.saveOfflineQueue()
-      
-      // 更新最后同步时间
-      this.setItem(STORAGE_KEYS.LAST_SYNC, new Date().toISOString())
-      
-      console.log('离线数据同步完成')
-    } catch (error) {
-      console.error('同步离线数据失败:', error)
-    }
-  }
-
-  /**
-   * 同步到服务器（模拟）
-   */
-  private async syncToServer(key: string, data: any): Promise<void> {
-    // 这里实现实际的服务器同步逻辑
-    return new Promise(resolve => {
-      setTimeout(() => {
-        console.log(`同步数据到服务器: ${key}`)
-        resolve()
-      }, 100)
-    })
-  }
-
-  /**
-   * 导出数据
-   */
-  exportData(): string {
-    const data: Record<string, any> = {}
-    
-    Object.values(STORAGE_KEYS).forEach(key => {
-      const item = this.getItem(key)
-      if (item) {
-        data[key] = item
-      }
-    })
-
-    return JSON.stringify(data, null, 2)
-  }
-
-  /**
-   * 导入数据
-   */
-  importData(jsonData: string): void {
-    try {
-      const data = JSON.parse(jsonData)
-      
-      Object.entries(data).forEach(([key, value]) => {
-        if (Object.values(STORAGE_KEYS).includes(key as any)) {
-          this.setItem(key, value)
+      keys.forEach(key => {
+        if (key.startsWith(this.prefix)) {
+          used += localStorage.getItem(key)?.length || 0
         }
       })
       
-      console.log('数据导入成功')
+      // 估算可用空间（通常为5MB）
+      const total = 5 * 1024 * 1024 // 5MB in bytes
+      const available = total - used
+      const percentage = (used / total) * 100
+      
+      return {
+        used,
+        available,
+        total,
+        percentage: Math.round(percentage * 100) / 100
+      }
     } catch (error) {
-      console.error('数据导入失败:', error)
-      throw new Error('数据格式错误')
+      console.error('Failed to get storage info:', error)
+      return {
+        used: 0,
+        available: 0,
+        total: 0,
+        percentage: 0
+      }
+    }
+  }
+  
+  /**
+   * 导出所有数据
+   */
+  exportData(): string {
+    try {
+      const data: Record<string, any> = {}
+      const keys = Object.keys(localStorage)
+      
+      keys.forEach(key => {
+        if (key.startsWith(this.prefix)) {
+          const cleanKey = key.replace(this.prefix, '')
+          data[cleanKey] = this.getItem(cleanKey)
+        }
+      })
+      
+      return JSON.stringify({
+        exportDate: new Date().toISOString(),
+        version: '1.0',
+        data
+      }, null, 2)
+    } catch (error) {
+      console.error('Failed to export data:', error)
+      return ''
+    }
+  }
+  
+  /**
+   * 导入数据
+   */
+  importData(jsonData: string): boolean {
+    try {
+      const parsed = JSON.parse(jsonData)
+      
+      if (!parsed.data) {
+        throw new Error('Invalid data format')
+      }
+      
+      Object.entries(parsed.data).forEach(([key, value]) => {
+        this.setItem(key, value)
+      })
+      
+      return true
+    } catch (error) {
+      console.error('Failed to import data:', error)
+      return false
+    }
+  }
+  
+  /**
+   * 数据同步到云端（模拟）
+   */
+  async syncToCloud(): Promise<boolean> {
+    try {
+      const data = this.exportData()
+      
+      // 模拟网络请求
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // 这里应该调用实际的云端API
+      console.log('Data synced to cloud:', data.length, 'characters')
+      
+      // 记录同步时间
+      this.setItem('last_sync_time', new Date().toISOString())
+      
+      return true
+    } catch (error) {
+      console.error('Failed to sync to cloud:', error)
+      return false
+    }
+  }
+  
+  /**
+   * 从云端同步数据（模拟）
+   */
+  async syncFromCloud(): Promise<boolean> {
+    try {
+      // 模拟网络请求
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // 这里应该调用实际的云端API获取数据
+      // const cloudData = await api.getUserData()
+      
+      console.log('Data synced from cloud')
+      return true
+    } catch (error) {
+      console.error('Failed to sync from cloud:', error)
+      return false
     }
   }
 }
 
 // 创建存储管理器实例
-const storageManager = new StorageManager()
+export const storage = new StorageManager()
 
-/**
- * 用户相关存储操作
- */
-export const userStorage = {
-  // 保存用户资料
-  saveProfile(profile: UserProfile): void {
-    storageManager.setItem(STORAGE_KEYS.USER_PROFILE, profile)
-  },
-
-  // 获取用户资料
-  getProfile(): UserProfile | null {
-    return storageManager.getItem<UserProfile>(STORAGE_KEYS.USER_PROFILE)
-  },
-
-  // 更新用户资料
-  updateProfile(updates: Partial<UserProfile>): void {
-    const profile = this.getProfile()
-    if (profile) {
-      const updatedProfile = {
-        ...profile,
-        ...updates,
-        updatedAt: new Date()
-      }
-      this.saveProfile(updatedProfile)
-    }
-  }
+// 便捷方法
+export const saveUserProfile = (profile: UserProfile): boolean => {
+  return storage.setItem(STORAGE_KEYS.USER_PROFILE, profile)
 }
 
-/**
- * 学习进度相关存储操作
- */
-export const progressStorage = {
-  // 保存学习进度
-  saveProgress(progress: LearningProgress): void {
-    storageManager.setItem(STORAGE_KEYS.LEARNING_PROGRESS, progress)
-  },
-
-  // 获取学习进度
-  getProgress(): LearningProgress | null {
-    return storageManager.getItem<LearningProgress>(STORAGE_KEYS.LEARNING_PROGRESS)
-  },
-
-  // 更新学习进度
-  updateProgress(updates: Partial<LearningProgress>): void {
-    const progress = this.getProgress()
-    if (progress) {
-      const updatedProgress = { ...progress, ...updates }
-      this.saveProgress(updatedProgress)
-    }
-  },
-
-  // 添加积分
-  addPoints(points: number): void {
-    const progress = this.getProgress()
-    if (progress) {
-      progress.totalPoints += points
-      // 检查是否升级
-      const newLevel = Math.floor(progress.totalPoints / 1000) + 1
-      if (newLevel > progress.level) {
-        progress.level = newLevel
-        // 触发升级事件
-        window.dispatchEvent(new CustomEvent('levelUp', { detail: { newLevel } }))
-      }
-      this.saveProgress(progress)
-    }
-  },
-
-  // 更新连续学习天数
-  updateStreak(): void {
-    const progress = this.getProgress()
-    if (progress) {
-      const today = new Date().toDateString()
-      const lastStudy = new Date(progress.lastStudyDate).toDateString()
-      
-      if (today !== lastStudy) {
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString()
-        
-        if (lastStudy === yesterday) {
-          progress.consecutiveDays += 1
-        } else {
-          progress.consecutiveDays = 1
-        }
-        
-        progress.lastStudyDate = new Date()
-        this.saveProgress(progress)
-      }
-    }
-  }
+export const getUserProfile = (): UserProfile | null => {
+  return storage.getItem<UserProfile>(STORAGE_KEYS.USER_PROFILE)
 }
 
-/**
- * 学习会话相关存储操作
- */
-export const sessionStorage = {
-  // 保存学习会话
-  saveSession(session: StudySession): void {
-    const sessions = this.getSessions()
-    sessions.push(session)
-    storageManager.setItem(STORAGE_KEYS.STUDY_SESSIONS, sessions)
-  },
-
-  // 获取所有学习会话
-  getSessions(): StudySession[] {
-    return storageManager.getItem<StudySession[]>(STORAGE_KEYS.STUDY_SESSIONS) || []
-  },
-
-  // 获取今日学习会话
-  getTodaySessions(): StudySession[] {
-    const sessions = this.getSessions()
-    const today = new Date().toDateString()
-    
-    return sessions.filter(session => 
-      new Date(session.startTime).toDateString() === today
-    )
-  },
-
-  // 获取学习统计
-  getStudyStats(days: number = 7): {
-    totalTime: number
-    totalSessions: number
-    averageScore: number
-    pointsEarned: number
-  } {
-    const sessions = this.getSessions()
-    const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-    
-    const recentSessions = sessions.filter(session => 
-      new Date(session.startTime) >= cutoffDate
-    )
-
-    const totalTime = recentSessions.reduce((sum, session) => sum + session.duration, 0)
-    const totalSessions = recentSessions.length
-    const averageScore = totalSessions > 0 
-      ? recentSessions.reduce((sum, session) => sum + session.score, 0) / totalSessions 
-      : 0
-    const pointsEarned = recentSessions.reduce((sum, session) => sum + session.pointsEarned, 0)
-
-    return {
-      totalTime,
-      totalSessions,
-      averageScore,
-      pointsEarned
-    }
-  }
+export const saveUserSettings = (settings: UserSettings): boolean => {
+  return storage.setItem(STORAGE_KEYS.USER_SETTINGS, settings)
 }
 
-/**
- * 学习目标相关存储操作
- */
-export const goalStorage = {
-  // 保存学习目标
-  saveGoal(goal: LearningGoal): void {
-    const goals = this.getGoals()
-    const existingIndex = goals.findIndex(g => g.id === goal.id)
-    
-    if (existingIndex >= 0) {
-      goals[existingIndex] = goal
-    } else {
-      goals.push(goal)
-    }
-    
-    storageManager.setItem(STORAGE_KEYS.LEARNING_GOALS, goals)
-  },
-
-  // 获取所有学习目标
-  getGoals(): LearningGoal[] {
-    return storageManager.getItem<LearningGoal[]>(STORAGE_KEYS.LEARNING_GOALS) || []
-  },
-
-  // 获取活跃目标
-  getActiveGoals(): LearningGoal[] {
-    const goals = this.getGoals()
-    return goals.filter(goal => !goal.completed && new Date(goal.deadline) > new Date())
-  },
-
-  // 更新目标进度
-  updateGoalProgress(goalId: string, progress: number): void {
-    const goals = this.getGoals()
-    const goal = goals.find(g => g.id === goalId)
-    
-    if (goal) {
-      goal.currentValue = Math.min(progress, goal.targetValue)
-      goal.completed = goal.currentValue >= goal.targetValue
-      
-      if (goal.completed) {
-        // 触发目标完成事件
-        window.dispatchEvent(new CustomEvent('goalCompleted', { detail: { goal } }))
-      }
-      
-      storageManager.setItem(STORAGE_KEYS.LEARNING_GOALS, goals)
-    }
-  },
-
-  // 删除目标
-  deleteGoal(goalId: string): void {
-    const goals = this.getGoals()
-    const filteredGoals = goals.filter(g => g.id !== goalId)
-    storageManager.setItem(STORAGE_KEYS.LEARNING_GOALS, filteredGoals)
-  }
+export const getUserSettings = (): UserSettings => {
+  return storage.getItem<UserSettings>(STORAGE_KEYS.USER_SETTINGS, {
+    theme: 'light',
+    language: 'zh-CN',
+    soundEnabled: true,
+    animationEnabled: true,
+    notificationEnabled: true,
+    autoSave: true,
+    difficulty: 'medium'
+  })!
 }
 
-/**
- * 通知设置相关存储操作
- */
-export const notificationStorage = {
-  // 保存通知设置
-  saveSettings(settings: NotificationSettings): void {
-    storageManager.setItem(STORAGE_KEYS.NOTIFICATION_SETTINGS, settings)
-  },
-
-  // 获取通知设置
-  getSettings(): NotificationSettings {
-    return storageManager.getItem<NotificationSettings>(STORAGE_KEYS.NOTIFICATION_SETTINGS) || {
-      studyReminder: true,
-      achievementNotification: true,
-      systemMessage: true,
-      soundAlert: false,
-      reminderTime: '19:00',
-      dailyGoalReminder: true
-    }
-  },
-
-  // 更新通知设置
-  updateSettings(updates: Partial<NotificationSettings>): void {
-    const settings = this.getSettings()
-    const updatedSettings = { ...settings, ...updates }
-    this.saveSettings(updatedSettings)
-  }
+export const saveLearningProgress = (progress: LearningProgress): boolean => {
+  return storage.setItem(STORAGE_KEYS.LEARNING_PROGRESS, progress)
 }
 
-// 导出存储管理器和工具函数
-export { storageManager, STORAGE_KEYS }
+export const getLearningProgress = (): LearningProgress | null => {
+  return storage.getItem<LearningProgress>(STORAGE_KEYS.LEARNING_PROGRESS)
+}
 
-// 导出便捷方法
-export const storage = {
-  user: userStorage,
-  progress: progressStorage,
-  session: sessionStorage,
-  goal: goalStorage,
-  notification: notificationStorage,
+export const saveAssessmentResult = (result: AssessmentResult): boolean => {
+  const results = getAssessmentResults()
+  results.push(result)
   
-  // 通用方法
-  clear: () => storageManager.clear(),
-  export: () => storageManager.exportData(),
-  import: (data: string) => storageManager.importData(data),
-  getSize: () => storageManager.getStorageSize()
+  // 只保留最近100次评估结果
+  if (results.length > 100) {
+    results.splice(0, results.length - 100)
+  }
+  
+  return storage.setItem(STORAGE_KEYS.ASSESSMENT_RESULTS, results)
+}
+
+export const getAssessmentResults = (): AssessmentResult[] => {
+  return storage.getItem<AssessmentResult[]>(STORAGE_KEYS.ASSESSMENT_RESULTS, [])!
+}
+
+export const saveGameScore = (gameType: string, score: number): boolean => {
+  const scores = storage.getItem<Record<string, number[]>>(STORAGE_KEYS.GAME_SCORES, {})!
+  
+  if (!scores[gameType]) {
+    scores[gameType] = []
+  }
+  
+  scores[gameType].push(score)
+  
+  // 只保留最近50次分数
+  if (scores[gameType].length > 50) {
+    scores[gameType].splice(0, scores[gameType].length - 50)
+  }
+  
+  return storage.setItem(STORAGE_KEYS.GAME_SCORES, scores)
+}
+
+export const getGameScores = (gameType?: string): Record<string, number[]> | number[] => {
+  const scores = storage.getItem<Record<string, number[]>>(STORAGE_KEYS.GAME_SCORES, {})!
+  
+  if (gameType) {
+    return scores[gameType] || []
+  }
+  
+  return scores
+}
+
+export const saveBadges = (badges: any[]): boolean => {
+  return storage.setItem(STORAGE_KEYS.BADGES, badges)
+}
+
+export const getBadges = (): any[] => {
+  return storage.getItem<any[]>(STORAGE_KEYS.BADGES, [])!
+}
+
+export const saveRecommendations = (recommendations: any[]): boolean => {
+  return storage.setItem(STORAGE_KEYS.RECOMMENDATIONS, recommendations)
+}
+
+export const getRecommendations = (): any[] => {
+  return storage.getItem<any[]>(STORAGE_KEYS.RECOMMENDATIONS, [])!
+}
+
+// 数据迁移工具
+export const migrateData = (fromVersion: string, toVersion: string): boolean => {
+  try {
+    console.log(`Migrating data from ${fromVersion} to ${toVersion}`)
+    
+    // 这里可以添加具体的数据迁移逻辑
+    // 例如：字段重命名、数据结构调整等
+    
+    return true
+  } catch (error) {
+    console.error('Data migration failed:', error)
+    return false
+  }
+}
+
+// 数据备份工具
+export const createBackup = (): string => {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const data = storage.exportData()
+  
+  // 创建备份文件名
+  const filename = `english_platform_backup_${timestamp}.json`
+  
+  // 在实际应用中，这里可以触发文件下载
+  console.log(`Backup created: ${filename}`)
+  
+  return data
+}
+
+// 数据恢复工具
+export const restoreBackup = (backupData: string): boolean => {
+  try {
+    // 先备份当前数据
+    const currentBackup = storage.exportData()
+    storage.setItem('restore_backup', currentBackup)
+    
+    // 恢复数据
+    const success = storage.importData(backupData)
+    
+    if (success) {
+      console.log('Data restored successfully')
+    } else {
+      // 恢复失败，回滚到之前的数据
+      storage.importData(currentBackup)
+      console.error('Restore failed, rolled back to previous data')
+    }
+    
+    return success
+  } catch (error) {
+    console.error('Restore backup failed:', error)
+    return false
+  }
 }
 
 export default storage

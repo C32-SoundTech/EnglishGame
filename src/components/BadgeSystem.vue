@@ -1,383 +1,963 @@
 <template>
   <div class="badge-system">
-    <!-- 徽章展示区域 -->
-    <div class="badges-container">
-      <h3 class="badges-title">
-        <Trophy class="w-5 h-5 mr-2 text-yellow-500" />
-        学习徽章
-      </h3>
-      
-      <div class="badges-grid">
-        <div
-          v-for="badge in badges"
-          :key="badge.id"
-          class="badge-card"
-          :class="{
-            earned: badge.earned,
-            locked: !badge.earned,
-            'animate-pulse': badge.justEarned
-          }"
-          @click="showBadgeDetail(badge)"
-        >
-          <div class="badge-icon">
-            <component 
-              :is="getBadgeIcon(badge.type)" 
-              class="w-8 h-8"
-              :class="badge.earned ? badge.color : 'text-gray-400'"
-            />
+    <!-- 徽章概览 -->
+    <div class="badge-overview">
+      <a-card class="overview-card">
+        <div class="overview-header">
+          <div class="header-info">
+            <h3 class="section-title">
+              <Award class="w-6 h-6 mr-2" />
+              学习徽章系统
+            </h3>
+            <p class="section-desc">通过完成学习任务和达成目标来解锁各种徽章奖励</p>
           </div>
-          <div class="badge-info">
-            <h4 class="badge-name">{{ badge.name }}</h4>
-            <p class="badge-description">{{ badge.description }}</p>
-            <div class="badge-progress" v-if="!badge.earned">
-              <a-progress
-                :percent="(badge.progress / badge.requirement) * 100"
-                :show-info="false"
-                :stroke-width="4"
-                stroke-color="#1890ff"
-              />
-              <span class="progress-text">
-                {{ badge.progress }}/{{ badge.requirement }}
-              </span>
+          <div class="header-stats">
+            <div class="stat-item">
+              <span class="stat-value">{{ unlockedBadges.length }}</span>
+              <span class="stat-label">已获得</span>
             </div>
-            <div v-else class="earned-date">
-              <Calendar class="w-3 h-3 mr-1" />
-              {{ formatDate(badge.earnedDate) }}
+            <div class="stat-divider">/</div>
+            <div class="stat-item">
+              <span class="stat-value">{{ totalBadges }}</span>
+              <span class="stat-label">总徽章</span>
             </div>
-          </div>
-          <div v-if="badge.earned" class="earned-indicator">
-            <CheckCircle class="w-5 h-5 text-green-500" />
           </div>
         </div>
-      </div>
+        
+        <div class="progress-overview">
+          <a-progress 
+            :percent="badgeProgress" 
+            :stroke-color="{
+              '0%': '#87d068',
+              '50%': '#ffe58f',
+              '100%': '#ffccc7',
+            }"
+            size="large"
+          />
+          <div class="progress-text">
+            徽章收集进度：{{ badgeProgress }}%
+          </div>
+        </div>
+      </a-card>
+    </div>
+
+    <!-- 徽章分类 -->
+    <div class="badge-categories">
+      <a-card title="徽章分类" class="categories-card">
+        <template #extra>
+          <a-select 
+            v-model:value="selectedCategory" 
+            style="width: 150px"
+            @change="handleCategoryChange"
+          >
+            <a-select-option value="all">全部徽章</a-select-option>
+            <a-select-option value="learning">学习成就</a-select-option>
+            <a-select-option value="skill">技能掌握</a-select-option>
+            <a-select-option value="progress">进度里程碑</a-select-option>
+            <a-select-option value="special">特殊奖励</a-select-option>
+          </a-select>
+        </template>
+        
+        <div class="categories-grid">
+          <div 
+            v-for="category in badgeCategories" 
+            :key="category.id"
+            class="category-item"
+            :class="{ 'active': selectedCategory === category.id }"
+            @click="selectCategory(category.id)"
+          >
+            <div class="category-icon" :style="{ backgroundColor: category.color + '20', color: category.color }">
+              <component :is="category.icon" class="w-6 h-6" />
+            </div>
+            <div class="category-info">
+              <h4 class="category-title">{{ category.title }}</h4>
+              <p class="category-description">{{ category.description }}</p>
+              <div class="category-stats">
+                <span class="unlocked-count">{{ category.unlockedCount }}</span>
+                <span class="total-count">/ {{ category.totalCount }}</span>
+              </div>
+            </div>
+            <div class="category-progress">
+              <a-progress 
+                type="circle" 
+                :percent="category.progress" 
+                :width="60"
+                :stroke-color="category.color"
+              />
+            </div>
+          </div>
+        </div>
+      </a-card>
+    </div>
+
+    <!-- 徽章展示 -->
+    <div class="badge-display">
+      <a-card title="徽章收藏" class="display-card">
+        <template #extra>
+          <div class="display-controls">
+            <a-radio-group v-model:value="displayMode" @change="handleDisplayModeChange">
+              <a-radio-button value="grid">网格视图</a-radio-button>
+              <a-radio-button value="list">列表视图</a-radio-button>
+            </a-radio-group>
+            <a-button @click="showBadgeStats">
+              <BarChart3 class="w-4 h-4 mr-1" />
+              统计
+            </a-button>
+          </div>
+        </template>
+        
+        <div class="badge-grid" :class="displayMode">
+          <div 
+            v-for="badge in filteredBadges" 
+            :key="badge.id"
+            class="badge-item"
+            :class="{ 
+              'unlocked': badge.unlocked, 
+              'locked': !badge.unlocked,
+              'new': badge.isNew 
+            }"
+            @click="viewBadgeDetail(badge)"
+          >
+            <div class="badge-container">
+              <div class="badge-icon" :style="getBadgeStyle(badge)">
+                <component :is="badge.icon" class="w-8 h-8" />
+                <div v-if="badge.unlocked && badge.isNew" class="new-indicator">
+                  <Sparkles class="w-3 h-3" />
+                </div>
+                <div v-if="!badge.unlocked" class="lock-overlay">
+                  <Lock class="w-4 h-4" />
+                </div>
+              </div>
+              
+              <div class="badge-info">
+                <h4 class="badge-title">{{ badge.title }}</h4>
+                <p class="badge-description">{{ badge.description }}</p>
+                
+                <div v-if="badge.unlocked" class="badge-meta">
+                  <div class="unlock-date">
+                    <Calendar class="w-3 h-3 mr-1" />
+                    {{ formatDate(badge.unlockedAt) }}
+                  </div>
+                  <div class="badge-rarity" :class="badge.rarity">
+                    <Star class="w-3 h-3 mr-1" />
+                    {{ getRarityText(badge.rarity) }}
+                  </div>
+                </div>
+                
+                <div v-else class="badge-requirements">
+                  <div class="requirement-title">解锁条件：</div>
+                  <div class="requirement-list">
+                    <div 
+                      v-for="requirement in badge.requirements" 
+                      :key="requirement.id"
+                      class="requirement-item"
+                      :class="{ 'completed': requirement.completed }"
+                    >
+                      <CheckCircle v-if="requirement.completed" class="w-3 h-3 mr-1 text-green-500" />
+                      <Circle v-else class="w-3 h-3 mr-1 text-gray-400" />
+                      <span>{{ requirement.description }}</span>
+                      <div v-if="requirement.progress !== undefined" class="requirement-progress">
+                        <a-progress 
+                          :percent="requirement.progress" 
+                          size="small"
+                          :show-info="false"
+                        />
+                        <span class="progress-text">{{ requirement.current }}/{{ requirement.target }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </a-card>
     </div>
 
     <!-- 最近获得的徽章 -->
-    <div v-if="recentBadges.length > 0" class="recent-badges">
-      <h4 class="recent-title">最近获得</h4>
-      <div class="recent-list">
-        <div
-          v-for="badge in recentBadges"
-          :key="badge.id"
-          class="recent-badge"
-        >
-          <component 
-            :is="getBadgeIcon(badge.type)" 
-            class="w-6 h-6"
-            :class="badge.color"
-          />
-          <span class="recent-name">{{ badge.name }}</span>
-          <span class="recent-date">{{ formatRelativeTime(badge.earnedDate) }}</span>
+    <div class="recent-badges">
+      <a-card title="最近获得" class="recent-card">
+        <div class="recent-list">
+          <div 
+            v-for="badge in recentBadges" 
+            :key="badge.id"
+            class="recent-item"
+          >
+            <div class="recent-badge">
+              <div class="badge-icon" :style="getBadgeStyle(badge)">
+                <component :is="badge.icon" class="w-6 h-6" />
+              </div>
+              <div class="badge-shine"></div>
+            </div>
+            <div class="recent-info">
+              <h4 class="recent-title">{{ badge.title }}</h4>
+              <p class="recent-time">{{ getRelativeTime(badge.unlockedAt) }}</p>
+            </div>
+            <div class="recent-celebration">
+              <a-button size="small" @click="celebrateBadge(badge)">
+                <Zap class="w-3 h-3 mr-1" />
+                庆祝
+              </a-button>
+            </div>
+          </div>
         </div>
-      </div>
+      </a-card>
     </div>
 
-    <!-- 徽章详情弹窗 -->
-    <a-modal
-      v-model:open="showDetailModal"
-      :title="selectedBadge?.name"
+    <!-- 徽章详情模态框 -->
+    <a-modal 
+      v-model:open="showBadgeDetail" 
+      :title="selectedBadge?.title" 
+      width="600px"
       :footer="null"
-      width="400px"
     >
       <div v-if="selectedBadge" class="badge-detail">
-        <div class="detail-icon">
-          <component 
-            :is="getBadgeIcon(selectedBadge.type)" 
-            class="w-16 h-16"
-            :class="selectedBadge.earned ? selectedBadge.color : 'text-gray-400'"
-          />
-        </div>
-        <div class="detail-info">
-          <h3 class="detail-name">{{ selectedBadge.name }}</h3>
-          <p class="detail-description">{{ selectedBadge.description }}</p>
-          <div class="detail-requirement">
-            <Target class="w-4 h-4 mr-2 text-blue-500" />
-            <span>要求：{{ selectedBadge.requirementText }}</span>
-          </div>
-          <div v-if="selectedBadge.earned" class="detail-earned">
-            <CheckCircle class="w-4 h-4 mr-2 text-green-500" />
-            <span>获得时间：{{ formatDate(selectedBadge.earnedDate) }}</span>
-          </div>
-          <div v-else class="detail-progress">
-            <div class="progress-info">
-              <span>进度：{{ selectedBadge.progress }}/{{ selectedBadge.requirement }}</span>
-              <span class="progress-percent">
-                {{ Math.round((selectedBadge.progress / selectedBadge.requirement) * 100) }}%
-              </span>
+        <div class="detail-header">
+          <div class="detail-badge">
+            <div class="badge-icon large" :style="getBadgeStyle(selectedBadge)">
+              <component :is="selectedBadge.icon" class="w-12 h-12" />
+              <div v-if="selectedBadge.unlocked && selectedBadge.isNew" class="new-indicator large">
+                <Sparkles class="w-4 h-4" />
+              </div>
+              <div v-if="!selectedBadge.unlocked" class="lock-overlay large">
+                <Lock class="w-6 h-6" />
+              </div>
             </div>
-            <a-progress
-              :percent="(selectedBadge.progress / selectedBadge.requirement) * 100"
-              :stroke-width="8"
-              stroke-color="#1890ff"
-            />
+            <div class="badge-glow" :style="{ backgroundColor: selectedBadge.color }"></div>
           </div>
+          <div class="detail-info">
+            <h3>{{ selectedBadge.title }}</h3>
+            <p>{{ selectedBadge.description }}</p>
+            <div class="detail-meta">
+              <a-tag :color="getRarityColor(selectedBadge.rarity)">
+                {{ getRarityText(selectedBadge.rarity) }}
+              </a-tag>
+              <a-tag :color="getCategoryColor(selectedBadge.category)">
+                {{ getCategoryText(selectedBadge.category) }}
+              </a-tag>
+            </div>
+          </div>
+        </div>
+        
+        <div class="detail-content">
+          <a-tabs>
+            <a-tab-pane key="info" tab="详细信息">
+              <div class="info-content">
+                <div v-if="selectedBadge.unlocked" class="unlock-info">
+                  <h4>获得信息</h4>
+                  <div class="unlock-details">
+                    <div class="detail-item">
+                      <Calendar class="w-4 h-4 mr-2" />
+                      <span>获得时间：{{ formatDateTime(selectedBadge.unlockedAt) }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <Trophy class="w-4 h-4 mr-2" />
+                      <span>获得方式：{{ selectedBadge.unlockMethod }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <Users class="w-4 h-4 mr-2" />
+                      <span>获得率：{{ selectedBadge.unlockRate }}%</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="requirements-info">
+                  <h4>{{ selectedBadge.unlocked ? '完成条件' : '解锁条件' }}</h4>
+                  <div class="requirements-list">
+                    <div 
+                      v-for="requirement in selectedBadge.requirements" 
+                      :key="requirement.id"
+                      class="requirement-detail"
+                      :class="{ 'completed': requirement.completed }"
+                    >
+                      <div class="requirement-header">
+                        <CheckCircle v-if="requirement.completed" class="w-4 h-4 mr-2 text-green-500" />
+                        <Circle v-else class="w-4 h-4 mr-2 text-gray-400" />
+                        <span class="requirement-text">{{ requirement.description }}</span>
+                      </div>
+                      <div v-if="requirement.progress !== undefined" class="requirement-progress-detail">
+                        <a-progress 
+                          :percent="requirement.progress" 
+                          :stroke-color="requirement.completed ? '#52c41a' : '#1890ff'"
+                        />
+                        <span class="progress-detail">{{ requirement.current }}/{{ requirement.target }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div v-if="selectedBadge.rewards" class="rewards-info">
+                  <h4>奖励内容</h4>
+                  <div class="rewards-list">
+                    <div 
+                      v-for="reward in selectedBadge.rewards" 
+                      :key="reward.type"
+                      class="reward-item"
+                    >
+                      <div class="reward-icon">
+                        <component :is="reward.icon" class="w-4 h-4" />
+                      </div>
+                      <span class="reward-text">{{ reward.description }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </a-tab-pane>
+            
+            <a-tab-pane key="tips" tab="获得攻略">
+              <div class="tips-content">
+                <div v-if="selectedBadge.tips" class="tips-list">
+                  <div 
+                    v-for="(tip, index) in selectedBadge.tips" 
+                    :key="index"
+                    class="tip-item"
+                  >
+                    <div class="tip-number">{{ index + 1 }}</div>
+                    <div class="tip-content">
+                      <h5 class="tip-title">{{ tip.title }}</h5>
+                      <p class="tip-description">{{ tip.description }}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div v-if="selectedBadge.relatedBadges" class="related-badges">
+                  <h4>相关徽章</h4>
+                  <div class="related-list">
+                    <div 
+                      v-for="relatedBadge in selectedBadge.relatedBadges" 
+                      :key="relatedBadge.id"
+                      class="related-item"
+                      @click="viewBadgeDetail(relatedBadge)"
+                    >
+                      <div class="related-icon" :style="getBadgeStyle(relatedBadge)">
+                        <component :is="relatedBadge.icon" class="w-5 h-5" />
+                      </div>
+                      <span class="related-title">{{ relatedBadge.title }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </a-tab-pane>
+          </a-tabs>
+        </div>
+        
+        <div v-if="!selectedBadge.unlocked" class="detail-actions">
+          <a-button 
+            type="primary" 
+            size="large"
+            @click="startBadgeQuest(selectedBadge)"
+          >
+            <Target class="w-4 h-4 mr-1" />
+            开始挑战
+          </a-button>
         </div>
       </div>
     </a-modal>
 
-    <!-- 徽章获得动画 -->
-    <div v-if="showEarnedAnimation" class="earned-animation">
-      <div class="earned-popup">
-        <div class="earned-icon">
-          <Trophy class="w-12 h-12 text-yellow-400" />
+    <!-- 徽章统计模态框 -->
+    <a-modal 
+      v-model:open="showStatsModal" 
+      title="徽章统计" 
+      width="800px"
+      :footer="null"
+    >
+      <div class="stats-content">
+        <div class="stats-overview">
+          <a-row :gutter="16">
+            <a-col :span="6" v-for="stat in badgeStats" :key="stat.key">
+              <div class="stat-card">
+                <div class="stat-icon" :style="{ backgroundColor: stat.color + '20', color: stat.color }">
+                  <component :is="stat.icon" class="w-6 h-6" />
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value">{{ stat.value }}</div>
+                  <div class="stat-label">{{ stat.label }}</div>
+                </div>
+              </div>
+            </a-col>
+          </a-row>
         </div>
-        <h3 class="earned-title">恭喜获得新徽章！</h3>
-        <div class="earned-badge">
-          <component 
-            :is="getBadgeIcon(earnedBadge?.type)" 
-            class="w-10 h-10"
-            :class="earnedBadge?.color"
-          />
-          <span class="earned-name">{{ earnedBadge?.name }}</span>
+        
+        <div class="stats-charts">
+          <a-row :gutter="16">
+            <a-col :span="12">
+              <div class="chart-container">
+                <h4>徽章分布</h4>
+                <div class="category-distribution">
+                  <div 
+                    v-for="category in badgeCategories" 
+                    :key="category.id"
+                    class="distribution-item"
+                  >
+                    <span class="category-name">{{ category.title }}</span>
+                    <div class="distribution-bar">
+                      <div 
+                        class="bar-fill" 
+                        :style="{ 
+                          width: category.progress + '%', 
+                          backgroundColor: category.color 
+                        }"
+                      ></div>
+                    </div>
+                    <span class="category-percentage">{{ category.progress }}%</span>
+                  </div>
+                </div>
+              </div>
+            </a-col>
+            
+            <a-col :span="12">
+              <div class="chart-container">
+                <h4>稀有度分布</h4>
+                <div class="rarity-distribution">
+                  <div 
+                    v-for="rarity in rarityStats" 
+                    :key="rarity.type"
+                    class="rarity-item"
+                  >
+                    <div class="rarity-icon" :style="{ color: rarity.color }">
+                      <Star class="w-4 h-4" />
+                    </div>
+                    <span class="rarity-name">{{ rarity.name }}</span>
+                    <span class="rarity-count">{{ rarity.count }}</span>
+                  </div>
+                </div>
+              </div>
+            </a-col>
+          </a-row>
         </div>
-        <p class="earned-message">{{ earnedBadge?.description }}</p>
       </div>
-    </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { 
-  Trophy, CheckCircle, Calendar, Target, Star, Zap, 
-  BookOpen, Headphones, PenTool, Eye, Award, Crown,
-  Flame, Heart, Shield, Gem
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { message } from 'ant-design-vue'
+import {
+  Award,
+  Star,
+  Lock,
+  Sparkles,
+  Calendar,
+  CheckCircle,
+  Circle,
+  BarChart3,
+  Zap,
+  Target,
+  Trophy,
+  Users,
+  BookOpen,
+  MessageSquare,
+  Headphones,
+  PenTool,
+  Clock,
+  TrendingUp,
+  Heart,
+  Shield,
+  Crown,
+  Gem,
+  Flame,
+  Lightning
 } from 'lucide-vue-next'
+
+interface BadgeRequirement {
+  id: string
+  description: string
+  completed: boolean
+  progress?: number
+  current?: number
+  target?: number
+}
 
 interface Badge {
   id: string
-  name: string
+  title: string
   description: string
-  type: string
+  category: 'learning' | 'skill' | 'progress' | 'special'
+  rarity: 'common' | 'rare' | 'epic' | 'legendary'
+  icon: any
   color: string
-  requirement: number
+  unlocked: boolean
+  unlockedAt?: Date
+  unlockMethod?: string
+  unlockRate?: number
+  isNew?: boolean
+  requirements: BadgeRequirement[]
+  rewards?: Array<{
+    type: string
+    description: string
+    icon: any
+  }>
+  tips?: Array<{
+    title: string
+    description: string
+  }>
+  relatedBadges?: Badge[]
+}
+
+interface BadgeCategory {
+  id: string
+  title: string
+  description: string
+  icon: any
+  color: string
+  unlockedCount: number
+  totalCount: number
   progress: number
-  earned: boolean
-  earnedDate?: Date
-  requirementText: string
-  justEarned?: boolean
 }
 
-interface Props {
-  userStats?: {
-    totalScore: number
-    correctAnswers: number
-    streak: number
-    daysActive: number
-    lessonsCompleted: number
-    vocabularyLearned: number
-    listeningHours: number
-    writingExercises: number
-    readingPassages: number
-  }
-}
-
-const props = defineProps<Props>()
+const router = useRouter()
 
 // 响应式数据
-const badges = ref<Badge[]>([])
-const showDetailModal = ref(false)
+const selectedCategory = ref('all')
+const displayMode = ref('grid')
+const showBadgeDetail = ref(false)
+const showStatsModal = ref(false)
 const selectedBadge = ref<Badge | null>(null)
-const showEarnedAnimation = ref(false)
-const earnedBadge = ref<Badge | null>(null)
+
+// 徽章分类
+const badgeCategories = ref<BadgeCategory[]>([
+  {
+    id: 'learning',
+    title: '学习成就',
+    description: '完成学习任务获得的徽章',
+    icon: BookOpen,
+    color: '#1890ff',
+    unlockedCount: 8,
+    totalCount: 15,
+    progress: 53
+  },
+  {
+    id: 'skill',
+    title: '技能掌握',
+    description: '掌握特定技能获得的徽章',
+    icon: Star,
+    color: '#52c41a',
+    unlockedCount: 5,
+    totalCount: 12,
+    progress: 42
+  },
+  {
+    id: 'progress',
+    title: '进度里程碑',
+    description: '达成学习进度获得的徽章',
+    icon: TrendingUp,
+    color: '#fa8c16',
+    unlockedCount: 3,
+    totalCount: 8,
+    progress: 38
+  },
+  {
+    id: 'special',
+    title: '特殊奖励',
+    description: '特殊活动或成就获得的徽章',
+    icon: Crown,
+    color: '#722ed1',
+    unlockedCount: 2,
+    totalCount: 5,
+    progress: 40
+  }
+])
+
+// 徽章数据
+const badges = ref<Badge[]>([
+  {
+    id: '1',
+    title: '初学者',
+    description: '完成第一次学习任务',
+    category: 'learning',
+    rarity: 'common',
+    icon: BookOpen,
+    color: '#1890ff',
+    unlocked: true,
+    unlockedAt: new Date('2024-01-15'),
+    unlockMethod: '完成首次学习',
+    unlockRate: 95,
+    isNew: false,
+    requirements: [
+      {
+        id: '1',
+        description: '完成任意一个学习任务',
+        completed: true,
+        progress: 100,
+        current: 1,
+        target: 1
+      }
+    ],
+    rewards: [
+      {
+        type: 'points',
+        description: '获得 50 学习积分',
+        icon: Star
+      }
+    ],
+    tips: [
+      {
+        title: '开始学习',
+        description: '选择任意一个学习模块开始你的英语学习之旅'
+      }
+    ]
+  },
+  {
+    id: '2',
+    title: '口语达人',
+    description: '完成100次口语练习',
+    category: 'skill',
+    rarity: 'rare',
+    icon: MessageSquare,
+    color: '#ff4d4f',
+    unlocked: true,
+    unlockedAt: new Date('2024-02-20'),
+    unlockMethod: '口语练习累计',
+    unlockRate: 35,
+    isNew: true,
+    requirements: [
+      {
+        id: '1',
+        description: '完成100次口语练习',
+        completed: true,
+        progress: 100,
+        current: 100,
+        target: 100
+      }
+    ],
+    rewards: [
+      {
+        type: 'title',
+        description: '解锁"口语达人"称号',
+        icon: Crown
+      },
+      {
+        type: 'points',
+        description: '获得 200 学习积分',
+        icon: Star
+      }
+    ],
+    tips: [
+      {
+        title: '坚持练习',
+        description: '每天进行口语练习，保持连续性'
+      },
+      {
+        title: '录音对比',
+        description: '录制自己的发音并与标准发音对比'
+      }
+    ]
+  },
+  {
+    id: '3',
+    title: '词汇大师',
+    description: '掌握1000个单词',
+    category: 'skill',
+    rarity: 'epic',
+    icon: Zap,
+    color: '#722ed1',
+    unlocked: false,
+    requirements: [
+      {
+        id: '1',
+        description: '学习1000个单词',
+        completed: false,
+        progress: 75,
+        current: 750,
+        target: 1000
+      },
+      {
+        id: '2',
+        description: '词汇测试平均分达到85分',
+        completed: false,
+        progress: 60,
+        current: 78,
+        target: 85
+      }
+    ],
+    tips: [
+      {
+        title: '分组学习',
+        description: '将单词按主题分组，便于记忆和复习'
+      },
+      {
+        title: '语境记忆',
+        description: '在句子和文章中学习单词，提高记忆效果'
+      }
+    ]
+  },
+  {
+    id: '4',
+    title: '连续学习者',
+    description: '连续学习30天',
+    category: 'progress',
+    rarity: 'rare',
+    icon: Flame,
+    color: '#fa8c16',
+    unlocked: false,
+    requirements: [
+      {
+        id: '1',
+        description: '连续30天完成学习任务',
+        completed: false,
+        progress: 67,
+        current: 20,
+        target: 30
+      }
+    ],
+    tips: [
+      {
+        title: '制定计划',
+        description: '制定每日学习计划，养成学习习惯'
+      },
+      {
+        title: '设置提醒',
+        description: '设置学习提醒，避免遗忘'
+      }
+    ]
+  },
+  {
+    id: '5',
+    title: '听力专家',
+    description: '听力测试连续10次满分',
+    category: 'skill',
+    rarity: 'epic',
+    icon: Headphones,
+    color: '#52c41a',
+    unlocked: false,
+    requirements: [
+      {
+        id: '1',
+        description: '听力测试连续10次满分',
+        completed: false,
+        progress: 30,
+        current: 3,
+        target: 10
+      }
+    ],
+    tips: [
+      {
+        title: '多样化练习',
+        description: '练习不同类型的听力材料'
+      },
+      {
+        title: '注意细节',
+        description: '仔细听取关键信息和细节'
+      }
+    ]
+  },
+  {
+    id: '6',
+    title: '传奇学者',
+    description: '获得所有技能徽章',
+    category: 'special',
+    rarity: 'legendary',
+    icon: Crown,
+    color: '#d4b106',
+    unlocked: false,
+    requirements: [
+      {
+        id: '1',
+        description: '获得所有技能类徽章',
+        completed: false,
+        progress: 42,
+        current: 5,
+        target: 12
+      }
+    ],
+    tips: [
+      {
+        title: '全面发展',
+        description: '均衡发展听说读写各项技能'
+      },
+      {
+        title: '持续挑战',
+        description: '不断挑战更高难度的学习内容'
+      }
+    ]
+  }
+])
 
 // 计算属性
-const recentBadges = computed(() => {
-  return badges.value
-    .filter(badge => badge.earned && badge.earnedDate)
-    .sort((a, b) => (b.earnedDate?.getTime() || 0) - (a.earnedDate?.getTime() || 0))
-    .slice(0, 3)
+const totalBadges = computed(() => badges.value.length)
+const unlockedBadges = computed(() => badges.value.filter(badge => badge.unlocked))
+const badgeProgress = computed(() => Math.round((unlockedBadges.value.length / totalBadges.value) * 100))
+
+const filteredBadges = computed(() => {
+  if (selectedCategory.value === 'all') {
+    return badges.value
+  }
+  return badges.value.filter(badge => badge.category === selectedCategory.value)
 })
 
-// 初始化徽章数据
-const initializeBadges = () => {
-  badges.value = [
-    {
-      id: 'first-lesson',
-      name: '初学者',
-      description: '完成第一个学习课程',
-      type: 'lesson',
-      color: 'text-blue-500',
-      requirement: 1,
-      progress: props.userStats?.lessonsCompleted || 0,
-      earned: false,
-      requirementText: '完成1个课程'
-    },
-    {
-      id: 'vocabulary-master',
-      name: '词汇大师',
-      description: '学会100个新单词',
-      type: 'vocabulary',
-      color: 'text-green-500',
-      requirement: 100,
-      progress: props.userStats?.vocabularyLearned || 0,
-      earned: false,
-      requirementText: '学会100个单词'
-    },
-    {
-      id: 'listening-expert',
-      name: '听力专家',
-      description: '完成10小时听力练习',
-      type: 'listening',
-      color: 'text-purple-500',
-      requirement: 10,
-      progress: props.userStats?.listeningHours || 0,
-      earned: false,
-      requirementText: '完成10小时听力练习'
-    },
-    {
-      id: 'writing-champion',
-      name: '写作冠军',
-      description: '完成50个写作练习',
-      type: 'writing',
-      color: 'text-orange-500',
-      requirement: 50,
-      progress: props.userStats?.writingExercises || 0,
-      earned: false,
-      requirementText: '完成50个写作练习'
-    },
-    {
-      id: 'reading-enthusiast',
-      name: '阅读爱好者',
-      description: '阅读20篇文章',
-      type: 'reading',
-      color: 'text-indigo-500',
-      requirement: 20,
-      progress: props.userStats?.readingPassages || 0,
-      earned: false,
-      requirementText: '阅读20篇文章'
-    },
-    {
-      id: 'streak-warrior',
-      name: '连击战士',
-      description: '达到10连击',
-      type: 'streak',
-      color: 'text-red-500',
-      requirement: 10,
-      progress: props.userStats?.streak || 0,
-      earned: false,
-      requirementText: '达到10连击'
-    },
-    {
-      id: 'daily-learner',
-      name: '每日学习者',
-      description: '连续学习7天',
-      type: 'daily',
-      color: 'text-yellow-500',
-      requirement: 7,
-      progress: props.userStats?.daysActive || 0,
-      earned: false,
-      requirementText: '连续学习7天'
-    },
-    {
-      id: 'high-scorer',
-      name: '高分达人',
-      description: '总分达到1000分',
-      type: 'score',
-      color: 'text-pink-500',
-      requirement: 1000,
-      progress: props.userStats?.totalScore || 0,
-      earned: false,
-      requirementText: '总分达到1000分'
-    },
-    {
-      id: 'perfectionist',
-      name: '完美主义者',
-      description: '连续答对20题',
-      type: 'perfect',
-      color: 'text-cyan-500',
-      requirement: 20,
-      progress: props.userStats?.correctAnswers || 0,
-      earned: false,
-      requirementText: '连续答对20题'
-    },
-    {
-      id: 'legend',
-      name: '传奇学者',
-      description: '获得所有其他徽章',
-      type: 'legend',
-      color: 'text-amber-500',
-      requirement: 8,
-      progress: 0,
-      earned: false,
-      requirementText: '获得所有其他徽章'
-    }
-  ]
-  
-  checkBadgeProgress()
-}
+const recentBadges = computed(() => {
+  return unlockedBadges.value
+    .filter(badge => badge.unlockedAt)
+    .sort((a, b) => new Date(b.unlockedAt!).getTime() - new Date(a.unlockedAt!).getTime())
+    .slice(0, 5)
+})
 
-// 获取徽章图标
-const getBadgeIcon = (type: string) => {
-  const iconMap: Record<string, any> = {
-    lesson: BookOpen,
-    vocabulary: Star,
-    listening: Headphones,
-    writing: PenTool,
-    reading: Eye,
-    streak: Flame,
-    daily: Heart,
-    score: Award,
-    perfect: Crown,
-    legend: Gem
+const badgeStats = computed(() => [
+  {
+    key: 'total',
+    label: '总徽章',
+    value: totalBadges.value.toString(),
+    icon: Award,
+    color: '#1890ff'
+  },
+  {
+    key: 'unlocked',
+    label: '已获得',
+    value: unlockedBadges.value.length.toString(),
+    icon: CheckCircle,
+    color: '#52c41a'
+  },
+  {
+    key: 'rare',
+    label: '稀有徽章',
+    value: unlockedBadges.value.filter(b => ['rare', 'epic', 'legendary'].includes(b.rarity)).length.toString(),
+    icon: Gem,
+    color: '#722ed1'
+  },
+  {
+    key: 'recent',
+    label: '本月获得',
+    value: unlockedBadges.value.filter(b => {
+      const now = new Date()
+      const unlockDate = new Date(b.unlockedAt!)
+      return unlockDate.getMonth() === now.getMonth() && unlockDate.getFullYear() === now.getFullYear()
+    }).length.toString(),
+    icon: Calendar,
+    color: '#fa8c16'
   }
-  return iconMap[type] || Trophy
-}
+])
 
-// 检查徽章进度
-const checkBadgeProgress = () => {
-  badges.value.forEach(badge => {
-    if (!badge.earned && badge.progress >= badge.requirement) {
-      earnBadge(badge)
-    }
-  })
-  
-  // 检查传奇学者徽章
-  const legendBadge = badges.value.find(b => b.id === 'legend')
-  if (legendBadge && !legendBadge.earned) {
-    const otherEarnedBadges = badges.value.filter(b => b.id !== 'legend' && b.earned).length
-    legendBadge.progress = otherEarnedBadges
-    if (otherEarnedBadges >= legendBadge.requirement) {
-      earnBadge(legendBadge)
-    }
+const rarityStats = computed(() => [
+  {
+    type: 'common',
+    name: '普通',
+    color: '#8c8c8c',
+    count: unlockedBadges.value.filter(b => b.rarity === 'common').length
+  },
+  {
+    type: 'rare',
+    name: '稀有',
+    color: '#1890ff',
+    count: unlockedBadges.value.filter(b => b.rarity === 'rare').length
+  },
+  {
+    type: 'epic',
+    name: '史诗',
+    color: '#722ed1',
+    count: unlockedBadges.value.filter(b => b.rarity === 'epic').length
+  },
+  {
+    type: 'legendary',
+    name: '传奇',
+    color: '#d4b106',
+    count: unlockedBadges.value.filter(b => b.rarity === 'legendary').length
   }
+])
+
+// 方法
+const handleCategoryChange = (value: string) => {
+  message.info(`切换到${getCategoryText(value)}`)
 }
 
-// 获得徽章
-const earnBadge = (badge: Badge) => {
-  badge.earned = true
-  badge.earnedDate = new Date()
-  badge.justEarned = true
-  
-  // 显示获得动画
-  earnedBadge.value = badge
-  showEarnedAnimation.value = true
-  
-  setTimeout(() => {
-    showEarnedAnimation.value = false
-    badge.justEarned = false
-  }, 3000)
+const selectCategory = (categoryId: string) => {
+  selectedCategory.value = categoryId
 }
 
-// 显示徽章详情
-const showBadgeDetail = (badge: Badge) => {
+const handleDisplayModeChange = () => {
+  message.info(`切换到${displayMode.value === 'grid' ? '网格' : '列表'}视图`)
+}
+
+const viewBadgeDetail = (badge: Badge) => {
   selectedBadge.value = badge
-  showDetailModal.value = true
+  showBadgeDetail.value = true
 }
 
-// 格式化日期
-const formatDate = (date?: Date) => {
-  if (!date) return ''
-  return date.toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
+const showBadgeStats = () => {
+  showStatsModal.value = true
 }
 
-// 格式化相对时间
-const formatRelativeTime = (date?: Date) => {
-  if (!date) return ''
+const celebrateBadge = (badge: Badge) => {
+  message.success(`🎉 恭喜获得徽章：${badge.title}！`)
+}
+
+const startBadgeQuest = (badge: Badge) => {
+  message.info(`开始挑战徽章：${badge.title}`)
+  showBadgeDetail.value = false
+  router.push('/games')
+}
+
+// 工具函数
+const getBadgeStyle = (badge: Badge) => {
+  const baseStyle = {
+    backgroundColor: badge.color + '20',
+    color: badge.color,
+    borderColor: badge.color
+  }
+  
+  if (!badge.unlocked) {
+    return {
+      ...baseStyle,
+      backgroundColor: '#f5f5f5',
+      color: '#bfbfbf',
+      borderColor: '#d9d9d9'
+    }
+  }
+  
+  return baseStyle
+}
+
+const getRarityColor = (rarity: string): string => {
+  const colors: Record<string, string> = {
+    common: 'default',
+    rare: 'blue',
+    epic: 'purple',
+    legendary: 'gold'
+  }
+  return colors[rarity] || 'default'
+}
+
+const getRarityText = (rarity: string): string => {
+  const texts: Record<string, string> = {
+    common: '普通',
+    rare: '稀有',
+    epic: '史诗',
+    legendary: '传奇'
+  }
+  return texts[rarity] || rarity
+}
+
+const getCategoryColor = (category: string): string => {
+  const colors: Record<string, string> = {
+    learning: 'blue',
+    skill: 'green',
+    progress: 'orange',
+    special: 'purple'
+  }
+  return colors[category] || 'default'
+}
+
+const getCategoryText = (category: string): string => {
+  const texts: Record<string, string> = {
+    all: '全部徽章',
+    learning: '学习成就',
+    skill: '技能掌握',
+    progress: '进度里程碑',
+    special: '特殊奖励'
+  }
+  return texts[category] || category
+}
+
+const formatDate = (date: Date): string => {
+  return date.toLocaleDateString('zh-CN')
+}
+
+const formatDateTime = (date: Date): string => {
+  return date.toLocaleString('zh-CN')
+}
+
+const getRelativeTime = (date: Date): string => {
   const now = new Date()
   const diff = now.getTime() - date.getTime()
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
@@ -385,338 +965,815 @@ const formatRelativeTime = (date?: Date) => {
   if (days === 0) return '今天'
   if (days === 1) return '昨天'
   if (days < 7) return `${days}天前`
-  return formatDate(date)
+  if (days < 30) return `${Math.floor(days / 7)}周前`
+  return `${Math.floor(days / 30)}个月前`
 }
 
-// 监听用户统计数据变化
-watch(() => props.userStats, (newStats) => {
-  if (newStats) {
-    badges.value.forEach(badge => {
-      switch (badge.id) {
-        case 'first-lesson':
-          badge.progress = newStats.lessonsCompleted || 0
-          break
-        case 'vocabulary-master':
-          badge.progress = newStats.vocabularyLearned || 0
-          break
-        case 'listening-expert':
-          badge.progress = newStats.listeningHours || 0
-          break
-        case 'writing-champion':
-          badge.progress = newStats.writingExercises || 0
-          break
-        case 'reading-enthusiast':
-          badge.progress = newStats.readingPassages || 0
-          break
-        case 'streak-warrior':
-          badge.progress = newStats.streak || 0
-          break
-        case 'daily-learner':
-          badge.progress = newStats.daysActive || 0
-          break
-        case 'high-scorer':
-          badge.progress = newStats.totalScore || 0
-          break
-        case 'perfectionist':
-          badge.progress = newStats.correctAnswers || 0
-          break
-      }
-    })
-    checkBadgeProgress()
-  }
-}, { deep: true })
-
+// 生命周期
 onMounted(() => {
-  initializeBadges()
+  // 初始化徽章数据
+})
+
+// 暴露方法给父组件
+defineExpose({
+  unlockBadge: (badgeId: string) => {
+    const badge = badges.value.find(b => b.id === badgeId)
+    if (badge && !badge.unlocked) {
+      badge.unlocked = true
+      badge.unlockedAt = new Date()
+      badge.isNew = true
+      message.success(`🎉 恭喜获得新徽章：${badge.title}！`)
+    }
+  },
+  updateProgress: (badgeId: string, requirementId: string, progress: number) => {
+    const badge = badges.value.find(b => b.id === badgeId)
+    if (badge) {
+      const requirement = badge.requirements.find(r => r.id === requirementId)
+      if (requirement) {
+        requirement.progress = progress
+        requirement.completed = progress >= 100
+      }
+    }
+  },
+  getBadges: () => badges.value,
+  getUnlockedBadges: () => unlockedBadges.value
 })
 </script>
 
-<style scoped>
+<style scoped lang="less">
 .badge-system {
-  padding: 24px;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border-radius: 16px;
-}
+  .badge-overview {
+    margin-bottom: 24px;
 
-.badges-title {
-  display: flex;
-  align-items: center;
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 20px;
-}
+    .overview-card {
+      .overview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 24px;
 
-.badges-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  margin-bottom: 32px;
-}
+        .header-info {
+          .section-title {
+            display: flex;
+            align-items: center;
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0 0 8px 0;
+          }
 
-.badge-card {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
+          .section-desc {
+            color: #6b7280;
+            margin: 0;
+          }
+        }
 
-.badge-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
+        .header-stats {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 18px;
 
-.badge-card.earned {
-  border: 2px solid #10b981;
-  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
-}
+          .stat-item {
+            .stat-value {
+              font-weight: 600;
+              color: #1f2937;
+            }
 
-.badge-card.locked {
-  opacity: 0.6;
-}
+            .stat-label {
+              font-size: 12px;
+              color: #6b7280;
+              margin-left: 4px;
+            }
+          }
 
-.badge-icon {
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f8fafc;
-  border-radius: 12px;
-  margin-right: 16px;
-}
+          .stat-divider {
+            color: #d1d5db;
+            font-weight: 300;
+          }
+        }
+      }
 
-.badge-info {
-  flex: 1;
-}
-
-.badge-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 4px;
-}
-
-.badge-description {
-  font-size: 14px;
-  color: #6b7280;
-  margin-bottom: 8px;
-}
-
-.badge-progress {
-  margin-top: 8px;
-}
-
-.progress-text {
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 4px;
-  display: block;
-}
-
-.earned-date {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-  color: #10b981;
-  margin-top: 4px;
-}
-
-.earned-indicator {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-}
-
-.recent-badges {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.recent-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 16px;
-}
-
-.recent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.recent-badge {
-  display: flex;
-  align-items: center;
-  padding: 12px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-}
-
-.recent-name {
-  flex: 1;
-  margin-left: 12px;
-  font-weight: 500;
-  color: #1f2937;
-}
-
-.recent-date {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.badge-detail {
-  text-align: center;
-  padding: 20px 0;
-}
-
-.detail-icon {
-  margin-bottom: 16px;
-}
-
-.detail-name {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 8px;
-}
-
-.detail-description {
-  font-size: 14px;
-  color: #6b7280;
-  margin-bottom: 16px;
-}
-
-.detail-requirement,
-.detail-earned {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 12px;
-  font-size: 14px;
-}
-
-.detail-progress {
-  margin-top: 16px;
-}
-
-.progress-info {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.progress-percent {
-  font-weight: 600;
-  color: #1890ff;
-}
-
-.earned-animation {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease-out;
-}
-
-.earned-popup {
-  background: white;
-  padding: 32px;
-  border-radius: 16px;
-  text-align: center;
-  max-width: 400px;
-  animation: slideUp 0.5s ease-out;
-}
-
-.earned-icon {
-  margin-bottom: 16px;
-}
-
-.earned-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 16px;
-}
-
-.earned-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 16px;
-  background: #f8fafc;
-  border-radius: 12px;
-}
-
-.earned-name {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.earned-message {
-  font-size: 14px;
-  color: #6b7280;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
+      .progress-overview {
+        .progress-text {
+          text-align: center;
+          margin-top: 8px;
+          color: #6b7280;
+          font-size: 14px;
+        }
+      }
+    }
   }
-  to {
-    opacity: 1;
+
+  .badge-categories {
+    margin-bottom: 24px;
+
+    .categories-card {
+      .categories-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 16px;
+
+        .category-item {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 16px;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+
+          &:hover {
+            border-color: #d9d9d9;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+          }
+
+          &.active {
+            border-color: #1890ff;
+            background: #f6ffed;
+          }
+
+          .category-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
+
+          .category-info {
+            flex: 1;
+
+            .category-title {
+              font-size: 16px;
+              font-weight: 600;
+              color: #1f2937;
+              margin: 0 0 4px 0;
+            }
+
+            .category-description {
+              font-size: 12px;
+              color: #6b7280;
+              margin: 0 0 8px 0;
+            }
+
+            .category-stats {
+              font-size: 14px;
+
+              .unlocked-count {
+                font-weight: 600;
+                color: #1f2937;
+              }
+
+              .total-count {
+                color: #6b7280;
+              }
+            }
+          }
+
+          .category-progress {
+            flex-shrink: 0;
+          }
+        }
+      }
+    }
+  }
+
+  .badge-display {
+    margin-bottom: 24px;
+
+    .display-card {
+      .display-controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .badge-grid {
+        display: grid;
+        gap: 20px;
+
+        &.grid {
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        &.list {
+          grid-template-columns: 1fr;
+        }
+
+        .badge-item {
+          border: 1px solid #f0f0f0;
+          border-radius: 12px;
+          padding: 20px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          position: relative;
+
+          &:hover {
+            border-color: #d9d9d9;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+          }
+
+          &.unlocked {
+            background: linear-gradient(135deg, #fff 0%, #f9f9f9 100%);
+          }
+
+          &.locked {
+            background: #fafafa;
+            opacity: 0.7;
+          }
+
+          &.new::before {
+            content: 'NEW';
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ff4d4f;
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            z-index: 1;
+          }
+
+          .badge-container {
+            display: flex;
+            gap: 16px;
+
+            .badge-icon {
+              width: 64px;
+              height: 64px;
+              border-radius: 16px;
+              border: 2px solid;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              flex-shrink: 0;
+              position: relative;
+
+              &.large {
+                width: 96px;
+                height: 96px;
+                border-radius: 24px;
+              }
+
+              .new-indicator {
+                position: absolute;
+                top: -4px;
+                right: -4px;
+                background: #ff4d4f;
+                color: white;
+                border-radius: 50%;
+                width: 20px;
+                height: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+
+                &.large {
+                  width: 28px;
+                  height: 28px;
+                  top: -6px;
+                  right: -6px;
+                }
+              }
+
+              .lock-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: inherit;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+
+                &.large {
+                  border-radius: 24px;
+                }
+              }
+            }
+
+            .badge-info {
+              flex: 1;
+
+              .badge-title {
+                font-size: 16px;
+                font-weight: 600;
+                color: #1f2937;
+                margin: 0 0 8px 0;
+              }
+
+              .badge-description {
+                color: #6b7280;
+                line-height: 1.5;
+                margin-bottom: 12px;
+              }
+
+              .badge-meta {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+
+                .unlock-date,
+                .badge-rarity {
+                  display: flex;
+                  align-items: center;
+                  font-size: 12px;
+                }
+
+                .unlock-date {
+                  color: #6b7280;
+                }
+
+                .badge-rarity {
+                  &.common { color: #8c8c8c; }
+                  &.rare { color: #1890ff; }
+                  &.epic { color: #722ed1; }
+                  &.legendary { color: #d4b106; }
+                }
+              }
+
+              .badge-requirements {
+                .requirement-title {
+                  font-size: 12px;
+                  color: #374151;
+                  margin-bottom: 8px;
+                  font-weight: 500;
+                }
+
+                .requirement-list {
+                  .requirement-item {
+                    display: flex;
+                    align-items: center;
+                    font-size: 12px;
+                    color: #6b7280;
+                    margin-bottom: 4px;
+
+                    &.completed {
+                      color: #52c41a;
+                    }
+
+                    .requirement-progress {
+                      margin-left: auto;
+                      display: flex;
+                      align-items: center;
+                      gap: 8px;
+                      min-width: 100px;
+
+                      .progress-text {
+                        font-size: 10px;
+                        white-space: nowrap;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .recent-badges {
+    .recent-card {
+      .recent-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+
+        .recent-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px;
+          background: #fafafa;
+          border-radius: 8px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background: #f0f0f0;
+          }
+
+          .recent-badge {
+            position: relative;
+
+            .badge-icon {
+              width: 40px;
+              height: 40px;
+              border-radius: 10px;
+              border: 2px solid;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            .badge-shine {
+              position: absolute;
+              top: -2px;
+              left: -2px;
+              right: -2px;
+              bottom: -2px;
+              border-radius: 12px;
+              background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+              animation: shine 2s infinite;
+            }
+          }
+
+          .recent-info {
+            flex: 1;
+
+            .recent-title {
+              font-size: 14px;
+              font-weight: 600;
+              color: #1f2937;
+              margin: 0 0 2px 0;
+            }
+
+            .recent-time {
+              font-size: 12px;
+              color: #6b7280;
+              margin: 0;
+            }
+          }
+
+          .recent-celebration {
+            flex-shrink: 0;
+          }
+        }
+      }
+    }
+  }
+
+  .badge-detail {
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #f0f0f0;
+
+      .detail-badge {
+        position: relative;
+
+        .badge-glow {
+          position: absolute;
+          top: -8px;
+          left: -8px;
+          right: -8px;
+          bottom: -8px;
+          border-radius: 32px;
+          opacity: 0.2;
+          filter: blur(8px);
+        }
+      }
+
+      .detail-info {
+        flex: 1;
+
+        h3 {
+          font-size: 20px;
+          font-weight: 600;
+          color: #1f2937;
+          margin: 0 0 8px 0;
+        }
+
+        p {
+          color: #6b7280;
+          margin: 0 0 12px 0;
+          line-height: 1.5;
+        }
+
+        .detail-meta {
+          display: flex;
+          gap: 8px;
+        }
+      }
+    }
+
+    .detail-content {
+      margin-bottom: 24px;
+
+      .info-content {
+        .unlock-info,
+        .requirements-info,
+        .rewards-info {
+          margin-bottom: 24px;
+
+          h4 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+          }
+
+          .unlock-details,
+          .requirements-list,
+          .rewards-list {
+            .detail-item,
+            .requirement-detail,
+            .reward-item {
+              display: flex;
+              align-items: center;
+              padding: 8px 0;
+              border-bottom: 1px solid #f0f0f0;
+
+              &:last-child {
+                border-bottom: none;
+              }
+
+              &.completed {
+                .requirement-text {
+                  color: #52c41a;
+                }
+              }
+            }
+
+            .requirement-detail {
+              flex-direction: column;
+              align-items: flex-start;
+
+              .requirement-header {
+                display: flex;
+                align-items: center;
+                width: 100%;
+                margin-bottom: 8px;
+
+                .requirement-text {
+                  color: #374151;
+                }
+              }
+
+              .requirement-progress-detail {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+
+                .progress-detail {
+                  font-size: 12px;
+                  color: #6b7280;
+                  white-space: nowrap;
+                }
+              }
+            }
+
+            .reward-item {
+              .reward-icon {
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                background: #f0f0f0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-right: 12px;
+                flex-shrink: 0;
+              }
+
+              .reward-text {
+                color: #374151;
+              }
+            }
+          }
+        }
+      }
+
+      .tips-content {
+        .tips-list {
+          margin-bottom: 24px;
+
+          .tip-item {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+
+            .tip-number {
+              width: 24px;
+              height: 24px;
+              border-radius: 50%;
+              background: #1890ff;
+              color: white;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 12px;
+              font-weight: 600;
+              flex-shrink: 0;
+            }
+
+            .tip-content {
+              flex: 1;
+
+              .tip-title {
+                font-size: 14px;
+                font-weight: 600;
+                color: #1f2937;
+                margin: 0 0 4px 0;
+              }
+
+              .tip-description {
+                font-size: 14px;
+                color: #6b7280;
+                margin: 0;
+                line-height: 1.5;
+              }
+            }
+          }
+        }
+
+        .related-badges {
+          h4 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 12px;
+          }
+
+          .related-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+
+            .related-item {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              padding: 8px 12px;
+              border: 1px solid #f0f0f0;
+              border-radius: 8px;
+              cursor: pointer;
+              transition: all 0.3s ease;
+
+              &:hover {
+                border-color: #d9d9d9;
+                background: #fafafa;
+              }
+
+              .related-icon {
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                border: 1px solid;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+              }
+
+              .related-title {
+                font-size: 12px;
+                color: #374151;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    .detail-actions {
+      display: flex;
+      justify-content: center;
+      padding-top: 16px;
+      border-top: 1px solid #f0f0f0;
+    }
+  }
+
+  .stats-content {
+    .stats-overview {
+      margin-bottom: 24px;
+
+      .stat-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: #fafafa;
+        border-radius: 8px;
+
+        .stat-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .stat-content {
+          .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 2px;
+          }
+
+          .stat-label {
+            font-size: 12px;
+            color: #6b7280;
+          }
+        }
+      }
+    }
+
+    .stats-charts {
+      .chart-container {
+        h4 {
+          font-size: 16px;
+          font-weight: 600;
+          color: #1f2937;
+          margin-bottom: 16px;
+        }
+
+        .category-distribution {
+          .distribution-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+
+            .category-name {
+              width: 80px;
+              font-size: 14px;
+              color: #374151;
+              flex-shrink: 0;
+            }
+
+            .distribution-bar {
+              flex: 1;
+              height: 8px;
+              background: #f0f0f0;
+              border-radius: 4px;
+              overflow: hidden;
+
+              .bar-fill {
+                height: 100%;
+                transition: width 0.3s ease;
+              }
+            }
+
+            .category-percentage {
+              width: 40px;
+              text-align: right;
+              font-size: 12px;
+              color: #6b7280;
+              flex-shrink: 0;
+            }
+          }
+        }
+
+        .rarity-distribution {
+          .rarity-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+
+            &:last-child {
+              border-bottom: none;
+            }
+
+            .rarity-icon {
+              flex-shrink: 0;
+            }
+
+            .rarity-name {
+              flex: 1;
+              font-size: 14px;
+              color: #374151;
+            }
+
+            .rarity-count {
+              font-size: 16px;
+              font-weight: 600;
+              color: #1f2937;
+              flex-shrink: 0;
+            }
+          }
+        }
+      }
+    }
   }
 }
 
-@keyframes slideUp {
-  from {
-    transform: translateY(50px);
-    opacity: 0;
+@keyframes shine {
+  0% {
+    transform: translateX(-100%) rotate(45deg);
   }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .badges-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .badge-card {
-    padding: 12px;
-  }
-  
-  .badge-icon {
-    width: 40px;
-    height: 40px;
-    margin-right: 12px;
-  }
-  
-  .earned-popup {
-    margin: 20px;
-    padding: 24px;
+  100% {
+    transform: translateX(200%) rotate(45deg);
   }
 }
 </style>
