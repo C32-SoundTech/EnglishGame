@@ -1,120 +1,112 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import type { RouteRecordRaw } from 'vue-router'
 
-// 路由组件懒加载
-const HomePage = () => import('@/views/HomePage.vue')
-const LoginPage = () => import('@/views/LoginPage.vue')
-const RegisterPage = () => import('@/views/RegisterPage.vue')
-const GamesPage = () => import('@/views/GamesPage.vue')
-const GameLevelPage = () => import('@/views/GameLevelPage.vue')
-const ProgressPage = () => import('@/views/ProgressPage.vue')
-const AssessmentPage = () => import('@/views/AssessmentPage.vue')
-const AssessmentResultPage = () => import('@/views/AssessmentResultPage.vue')
-const ReportsPage = () => import('@/views/ReportsPage.vue')
-const ProfilePage = () => import('@/views/ProfilePage.vue')
-const GoalsPage = () => import('@/views/GoalsPage.vue')
-const RemindersPage = () => import('@/views/RemindersPage.vue')
+// 导入页面组件
+import LoginPage from '@/views/LoginPage.vue'
+import RegisterPage from '@/views/RegisterPage.vue'
+import HomePage from '@/views/HomePage.vue'
+import GamesPage from '@/views/GamesPage.vue'
+import AssessmentPage from '@/views/AssessmentPage.vue'
+import ProgressPage from '@/views/ProgressPage.vue'
+import ReportsPage from '@/views/ReportsPage.vue'
+import ProfilePage from '@/views/ProfilePage.vue'
 
-// 定义路由配置
-const routes = [
+const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    name: 'home',
-    component: HomePage,
-    meta: { requiresAuth: true }
+    redirect: '/login'
   },
   {
     path: '/login',
-    name: 'login',
+    name: 'Login',
     component: LoginPage,
-    meta: { requiresGuest: true }
+    meta: {
+      title: '登录',
+      requiresAuth: false
+    }
   },
   {
     path: '/register',
-    name: 'register',
+    name: 'Register',
     component: RegisterPage,
-    meta: { requiresGuest: true }
+    meta: {
+      title: '注册',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/home',
+    name: 'Home',
+    component: HomePage,
+    meta: {
+      title: '首页',
+      requiresAuth: true
+    }
   },
   {
     path: '/games',
-    name: 'games',
+    name: 'Games',
     component: GamesPage,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/games/:levelId',
-    name: 'game-level',
-    component: GameLevelPage,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/progress',
-    name: 'progress',
-    component: ProgressPage,
-    meta: { requiresAuth: true }
+    meta: {
+      title: '游戏学习',
+      requiresAuth: true
+    }
   },
   {
     path: '/assessment',
-    name: 'assessment',
+    name: 'Assessment',
     component: AssessmentPage,
-    meta: { requiresAuth: true }
+    meta: {
+      title: '能力评估',
+      requiresAuth: true
+    }
   },
   {
-    path: '/assessment/result',
-    name: 'assessment-result',
-    component: AssessmentResultPage,
-    meta: { requiresAuth: true }
+    path: '/progress',
+    name: 'Progress',
+    component: ProgressPage,
+    meta: {
+      title: '学习进度',
+      requiresAuth: true
+    }
   },
   {
     path: '/reports',
-    name: 'reports',
+    name: 'Reports',
     component: ReportsPage,
-    meta: { requiresAuth: true }
+    meta: {
+      title: '学习报告',
+      requiresAuth: true
+    }
   },
   {
     path: '/profile',
-    name: 'profile',
+    name: 'Profile',
     component: ProfilePage,
-    meta: { requiresAuth: true }
+    meta: {
+      title: '个人资料',
+      requiresAuth: true
+    }
   },
   {
-    path: '/goals',
-    name: 'goals',
-    component: GoalsPage,
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/reminders',
-    name: 'reminders',
-    component: RemindersPage,
-    meta: { requiresAuth: true }
+    path: '/:pathMatch(.*)*',
+    redirect: '/home'
   }
 ]
 
-// 创建路由实例
 const router = createRouter({
   history: createWebHistory(),
-  routes,
+  routes
 })
 
 // 路由守卫
-router.beforeEach(async (to, from, next) => {
-  const authStore = useAuthStore()
+router.beforeEach((to, from, next) => {
+  const isAuthenticated = localStorage.getItem('user_token')
   
-  // 初始化认证状态（仅在首次访问时）
-  if (!authStore.user && !authStore.loading) {
-    await authStore.initialize()
-  }
-  
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
-  const requiresGuest = to.matched.some(record => record.meta.requiresGuest)
-  
-  if (requiresAuth && !authStore.isAuthenticated) {
-    // 需要认证但未登录，跳转到登录页
+  if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
-  } else if (requiresGuest && authStore.isAuthenticated) {
-    // 需要游客状态但已登录，跳转到首页
-    next('/')
+  } else if (!to.meta.requiresAuth && isAuthenticated && (to.path === '/login' || to.path === '/register')) {
+    next('/home')
   } else {
     next()
   }

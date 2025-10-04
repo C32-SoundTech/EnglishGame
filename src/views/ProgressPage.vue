@@ -1,1433 +1,571 @@
 <template>
-  <MainLayout>
-    <div class="progress-page">
-      <!-- 页面标题 -->
-      <div class="page-header">
-        <h1 class="page-title">
-          <TrendingUp class="w-6 h-6 mr-3" />
-          学习进度
-        </h1>
-        <p class="page-subtitle">追踪你的学习成长轨迹</p>
+  <div class="progress-page min-h-screen bg-gradient-to-br from-blue-50 to-cyan-100">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-sm border-b">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+          <div class="flex items-center space-x-4">
+            <button @click="$router.go(-1)" class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <ArrowLeft class="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 class="text-xl font-semibold text-gray-900">学习进度</h1>
+          </div>
+          <div class="flex items-center space-x-4">
+            <div class="text-sm text-gray-600">
+              {{ currentUser?.name || '学生' }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Header Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div 
+          v-for="stat in overallStats" 
+          :key="stat.label"
+          class="bg-white rounded-xl p-6 shadow-sm"
+        >
+          <div class="flex items-center">
+            <div :class="`w-12 h-12 rounded-lg flex items-center justify-center ${stat.color}`">
+              <component :is="stat.icon" class="w-6 h-6 text-white" />
+            </div>
+            <div class="ml-4">
+              <p class="text-sm font-medium text-gray-600">{{ stat.label }}</p>
+              <p class="text-2xl font-bold text-gray-900">{{ stat.value }}</p>
+              <p :class="`text-sm ${stat.change > 0 ? 'text-green-600' : 'text-red-600'}`">
+                {{ stat.change > 0 ? '+' : '' }}{{ stat.change }}%
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- 总体进度概览 -->
-      <div class="progress-overview">
-        <a-row :gutter="[24, 24]">
-          <a-col :xs="24" :md="8">
-            <div class="overview-card main-progress">
-              <div class="card-header">
-                <h3 class="card-title">
-                  <Target class="w-5 h-5 mr-2" />
-                  总体进度
-                </h3>
-              </div>
-              <div class="progress-circle">
-                <div class="circle-progress" :style="{ '--progress': overallProgress }">
-                  <div class="progress-value">{{ overallProgress }}%</div>
-                  <div class="progress-label">完成度</div>
-                </div>
-              </div>
-              <div class="progress-stats">
-                <div class="stat-item">
-                  <span class="stat-value">{{ completedLevels }}</span>
-                  <span class="stat-label">已完成关卡</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-value">{{ totalPoints }}</span>
-                  <span class="stat-label">总积分</span>
-                </div>
-              </div>
+      <!-- Progress Overview -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <!-- Overall Progress Chart -->
+        <div class="lg:col-span-2 bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-lg font-semibold text-gray-900">学习进度趋势</h2>
+            <div class="flex space-x-2">
+              <button
+                v-for="period in timePeriods"
+                :key="period.value"
+                @click="selectedPeriod = period.value"
+                :class="`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                  selectedPeriod === period.value
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`"
+              >
+                {{ period.label }}
+              </button>
             </div>
-          </a-col>
+          </div>
           
-          <a-col :xs="24" :md="8">
-            <div class="overview-card level-info">
-              <div class="card-header">
-                <h3 class="card-title">
-                  <Award class="w-5 h-5 mr-2" />
-                  当前等级
-                </h3>
-              </div>
-              <div class="level-display">
-                <div class="level-badge">
-                  <div class="level-icon">
-                    <Crown class="w-8 h-8" />
-                  </div>
-                  <div class="level-info-text">
-                    <div class="level-name">{{ currentLevel.name }}</div>
-                    <div class="level-title">{{ currentLevel.title }}</div>
-                  </div>
-                </div>
-                <div class="level-progress">
-                  <div class="progress-bar">
-                    <div class="progress-fill" :style="{ width: `${levelProgress}%` }"></div>
-                  </div>
-                  <div class="progress-text">
-                    {{ currentLevelPoints }}/{{ nextLevelPoints }} 经验值
-                  </div>
-                </div>
-              </div>
+          <!-- Chart Placeholder -->
+          <div class="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+            <div class="text-center">
+              <TrendingUp class="w-12 h-12 text-gray-400 mx-auto mb-2" />
+              <p class="text-gray-500">学习进度图表</p>
+              <p class="text-sm text-gray-400">显示{{ selectedPeriod }}的学习数据</p>
             </div>
-          </a-col>
-          
-          <a-col :xs="24" :md="8">
-            <div class="overview-card streak-info">
-              <div class="card-header">
-                <h3 class="card-title">
-                  <Flame class="w-5 h-5 mr-2" />
-                  学习连击
-                </h3>
-              </div>
-              <div class="streak-display">
-                <div class="streak-number">{{ studyStreak }}</div>
-                <div class="streak-label">连续学习天数</div>
-                <div class="streak-calendar">
-                  <div
-                    v-for="(day, index) in recentDays"
-                    :key="index"
-                    class="calendar-day"
-                    :class="{ active: day.studied, today: day.isToday }"
-                  >
-                    <div class="day-dot"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </a-col>
-        </a-row>
-      </div>
+          </div>
+        </div>
 
-      <!-- 技能进度 -->
-      <div class="skills-section">
-        <h3 class="section-title">
-          <BookOpen class="w-5 h-5 mr-2" />
-          技能进度
-        </h3>
-        <a-row :gutter="[16, 16]">
-          <a-col :xs="24" :md="12" :lg="6" v-for="skill in skills" :key="skill.name">
-            <div class="skill-card">
-              <div class="skill-header">
-                <div class="skill-icon" :style="{ backgroundColor: skill.color + '20', color: skill.color }">
-                  <component :is="skill.icon" class="w-5 h-5" />
-                </div>
-                <div class="skill-info">
-                  <h4 class="skill-name">{{ skill.name }}</h4>
-                  <div class="skill-level">等级 {{ skill.level }}</div>
-                </div>
-              </div>
-              <div class="skill-progress">
-                <a-progress
-                  :percent="skill.progress"
-                  :stroke-color="skill.color"
-                  :show-info="false"
-                  size="small"
+        <!-- Level Progress -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">当前等级</h3>
+          <div class="text-center mb-6">
+            <div class="relative w-24 h-24 mx-auto mb-4">
+              <svg class="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  stroke="#e5e7eb"
+                  stroke-width="8"
+                  fill="none"
                 />
-                <div class="progress-info">
-                  <span class="progress-text">{{ skill.progress }}%</span>
-                  <span class="points-text">+{{ skill.recentPoints }}分</span>
-                </div>
-              </div>
-              <div class="skill-stats">
-                <div class="stat">
-                  <span class="stat-label">完成练习</span>
-                  <span class="stat-value">{{ skill.completedExercises }}</span>
-                </div>
-                <div class="stat">
-                  <span class="stat-label">正确率</span>
-                  <span class="stat-value">{{ skill.accuracy }}%</span>
-                </div>
-              </div>
-            </div>
-          </a-col>
-        </a-row>
-      </div>
-
-      <!-- 成就系统 -->
-      <div class="achievements-section">
-        <h3 class="section-title">
-          <Trophy class="w-5 h-5 mr-2" />
-          成就收集
-        </h3>
-        <div class="achievements-grid">
-          <div
-            v-for="achievement in achievements"
-            :key="achievement.id"
-            class="achievement-card"
-            :class="{ unlocked: achievement.unlocked, featured: achievement.featured }"
-            @click="showAchievementDetail(achievement)"
-          >
-            <div class="achievement-icon">
-              <component :is="achievement.icon" class="w-6 h-6" />
-            </div>
-            <div class="achievement-info">
-              <h4 class="achievement-name">{{ achievement.name }}</h4>
-              <p class="achievement-desc">{{ achievement.description }}</p>
-              <div class="achievement-progress" v-if="!achievement.unlocked">
-                <div class="progress-bar">
-                  <div class="progress-fill" :style="{ width: `${achievement.progress}%` }"></div>
-                </div>
-                <div class="progress-text">{{ achievement.current }}/{{ achievement.target }}</div>
-              </div>
-              <div class="achievement-reward" v-if="achievement.unlocked">
-                <Zap class="w-3 h-3 mr-1" />
-                +{{ achievement.points }}分
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  stroke="#3b82f6"
+                  stroke-width="8"
+                  fill="none"
+                  :stroke-dasharray="`${currentLevel.progress * 2.51} 251`"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="text-xl font-bold text-gray-900">{{ currentLevel.level }}</span>
               </div>
             </div>
-            <div class="achievement-badge" v-if="achievement.unlocked">
-              <Check class="w-4 h-4" />
+            <h4 class="text-lg font-semibold text-gray-900">{{ currentLevel.title }}</h4>
+            <p class="text-sm text-gray-600 mb-2">{{ currentLevel.description }}</p>
+            <div class="text-sm text-blue-600">
+              {{ currentLevel.currentXP }} / {{ currentLevel.nextLevelXP }} XP
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- 学习统计 -->
-      <div class="statistics-section">
-        <h3 class="section-title">
-          <BarChart3 class="w-5 h-5 mr-2" />
-          学习统计
-        </h3>
-        <a-row :gutter="[24, 24]">
-          <a-col :xs="24" :lg="12">
-            <div class="stat-card">
-              <div class="stat-header">
-                <h4 class="stat-title">
-                  <Calendar class="w-4 h-4 mr-2" />
-                  本周学习时长
-                </h4>
-                <a-select v-model:value="timeRange" size="small" style="width: 80px">
-                  <a-select-option value="week">本周</a-select-option>
-                  <a-select-option value="month">本月</a-select-option>
-                </a-select>
-              </div>
-              <div class="time-chart">
-                <div class="chart-bars">
-                  <div
-                    v-for="(day, index) in weeklyData"
-                    :key="index"
-                    class="bar-container"
-                  >
-                    <div class="bar-label">{{ day.label }}</div>
-                    <div class="bar-wrapper">
-                      <div
-                        class="time-bar"
-                        :style="{ height: `${(day.minutes / 120) * 100}%` }"
-                      >
-                        <div class="bar-tooltip">{{ day.minutes }}分钟</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </a-col>
           
-          <a-col :xs="24" :lg="12">
-            <div class="stat-card">
-              <div class="stat-header">
-                <h4 class="stat-title">
-                  <Target class="w-4 h-4 mr-2" />
-                  学习目标
-                </h4>
-                <a-button size="small" @click="showGoalSetting">设置</a-button>
-              </div>
-              <div class="goals-list">
-                <div
-                  v-for="goal in learningGoals"
-                  :key="goal.id"
-                  class="goal-item"
-                >
-                  <div class="goal-info">
-                    <div class="goal-name">{{ goal.name }}</div>
-                    <div class="goal-progress">
-                      <a-progress
-                        :percent="(goal.current / goal.target) * 100"
-                        :stroke-color="goal.color"
-                        size="small"
-                        :show-info="false"
-                      />
-                      <span class="goal-text">{{ goal.current }}/{{ goal.target }} {{ goal.unit }}</span>
-                    </div>
-                  </div>
-                  <div class="goal-status" :class="{ completed: goal.current >= goal.target }">
-                    <component :is="goal.current >= goal.target ? Check : Clock" class="w-4 h-4" />
-                  </div>
-                </div>
+          <!-- Next Level Preview -->
+          <div class="bg-blue-50 rounded-lg p-4">
+            <div class="flex items-center space-x-3">
+              <Star class="w-5 h-5 text-blue-600" />
+              <div>
+                <p class="text-sm font-medium text-blue-900">下一等级</p>
+                <p class="text-xs text-blue-700">{{ currentLevel.nextTitle }}</p>
               </div>
             </div>
-          </a-col>
-        </a-row>
+          </div>
+        </div>
       </div>
 
-      <!-- 最近活动 -->
-      <div class="activities-section">
-        <h3 class="section-title">
-          <Activity class="w-5 h-5 mr-2" />
-          最近活动
-        </h3>
-        <div class="activities-timeline">
-          <div
-            v-for="activity in recentActivities"
-            :key="activity.id"
-            class="activity-item"
+      <!-- Skills Progress -->
+      <div class="bg-white rounded-xl p-6 shadow-sm mb-8">
+        <h2 class="text-lg font-semibold text-gray-900 mb-6">技能掌握度</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div 
+            v-for="skill in skillsProgress" 
+            :key="skill.name"
+            class="space-y-3"
           >
-            <div class="activity-time">{{ formatTime(activity.time) }}</div>
-            <div class="activity-dot" :style="{ backgroundColor: activity.color }"></div>
-            <div class="activity-content">
-              <div class="activity-title">{{ activity.title }}</div>
-              <div class="activity-desc">{{ activity.description }}</div>
-              <div class="activity-reward" v-if="activity.points">
-                <Zap class="w-3 h-3 mr-1" />
-                +{{ activity.points }}分
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div :class="`w-8 h-8 rounded-lg flex items-center justify-center ${skill.color}`">
+                  <component :is="skill.icon" class="w-4 h-4 text-white" />
+                </div>
+                <span class="font-medium text-gray-900">{{ skill.name }}</span>
               </div>
+              <span class="text-sm font-medium text-gray-600">{{ skill.progress }}%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                :class="`h-2 rounded-full transition-all duration-500 ${skill.color.replace('bg-', 'bg-')}`"
+                :style="{ width: `${skill.progress}%` }"
+              ></div>
+            </div>
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>{{ skill.completed }} / {{ skill.total }} 完成</span>
+              <span>{{ skill.timeSpent }}h 学习时间</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 成就详情弹窗 -->
-      <a-modal
-        v-model:open="achievementModalVisible"
-        title="成就详情"
-        :footer="null"
-        width="400px"
-      >
-        <div class="achievement-detail" v-if="selectedAchievement">
-          <div class="detail-icon" :class="{ unlocked: selectedAchievement.unlocked }">
-            <component :is="selectedAchievement.icon" class="w-12 h-12" />
+      <!-- Recent Activities -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- Learning Activities -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-semibold text-gray-900">最近活动</h3>
+            <button class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              查看全部
+            </button>
           </div>
-          <h3 class="detail-title">{{ selectedAchievement.name }}</h3>
-          <p class="detail-desc">{{ selectedAchievement.description }}</p>
-          <div class="detail-progress" v-if="!selectedAchievement.unlocked">
-            <a-progress
-              :percent="selectedAchievement.progress"
-              :stroke-color="selectedAchievement.color"
-            />
-            <div class="progress-info">
-              <span>进度：{{ selectedAchievement.current }}/{{ selectedAchievement.target }}</span>
+          <div class="space-y-4">
+            <div 
+              v-for="activity in recentActivities" 
+              :key="activity.id"
+              class="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <div :class="`w-8 h-8 rounded-full flex items-center justify-center ${activity.color}`">
+                <component :is="activity.icon" class="w-4 h-4 text-white" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-900">{{ activity.title }}</p>
+                <p class="text-xs text-gray-500">{{ activity.description }}</p>
+                <p class="text-xs text-gray-400 mt-1">{{ activity.time }}</p>
+              </div>
+              <div v-if="activity.score" class="text-right">
+                <span class="text-sm font-medium text-green-600">+{{ activity.score }}</span>
+                <p class="text-xs text-gray-500">XP</p>
+              </div>
             </div>
           </div>
-          <div class="detail-reward">
-            <Zap class="w-4 h-4 mr-2" />
-            奖励：{{ selectedAchievement.points }}积分
-          </div>
         </div>
-      </a-modal>
 
-      <!-- 目标设置弹窗 -->
-      <a-modal
-        v-model:open="goalModalVisible"
-        title="设置学习目标"
-        @ok="saveGoals"
-        width="500px"
-      >
-        <div class="goal-setting">
-          <div v-for="goal in learningGoals" :key="goal.id" class="goal-setting-item">
-            <div class="goal-label">{{ goal.name }}</div>
-            <div class="goal-input">
-              <a-input-number
-                v-model:value="goal.target"
-                :min="1"
-                :max="goal.maxValue"
-                style="width: 120px"
-              />
-              <span class="goal-unit">{{ goal.unit }}</span>
+        <!-- Achievements -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-semibold text-gray-900">成就徽章</h3>
+            <button class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              查看全部
+            </button>
+          </div>
+          <div class="grid grid-cols-3 gap-4">
+            <div 
+              v-for="achievement in achievements" 
+              :key="achievement.id"
+              :class="`text-center p-3 rounded-lg border-2 transition-all ${
+                achievement.unlocked 
+                  ? 'border-yellow-200 bg-yellow-50' 
+                  : 'border-gray-200 bg-gray-50 opacity-60'
+              }`"
+            >
+              <div :class="`w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center ${
+                achievement.unlocked ? achievement.color : 'bg-gray-300'
+              }`">
+                <component :is="achievement.icon" class="w-6 h-6 text-white" />
+              </div>
+              <h4 class="text-xs font-medium text-gray-900 mb-1">{{ achievement.title }}</h4>
+              <p class="text-xs text-gray-500">{{ achievement.description }}</p>
             </div>
           </div>
         </div>
-      </a-modal>
+      </div>
+
+      <!-- Study Calendar -->
+      <div class="bg-white rounded-xl p-6 shadow-sm">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-lg font-semibold text-gray-900">学习日历</h3>
+          <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 text-sm text-gray-600">
+              <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span>已完成</span>
+            </div>
+            <div class="flex items-center space-x-2 text-sm text-gray-600">
+              <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <span>今天</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Calendar Grid -->
+        <div class="grid grid-cols-7 gap-2">
+          <!-- Week Headers -->
+          <div 
+            v-for="day in weekDays" 
+            :key="day"
+            class="text-center text-sm font-medium text-gray-500 py-2"
+          >
+            {{ day }}
+          </div>
+          
+          <!-- Calendar Days -->
+          <div 
+            v-for="date in calendarDays" 
+            :key="date.date"
+            :class="`aspect-square flex items-center justify-center text-sm rounded-lg cursor-pointer transition-colors ${
+              date.isToday 
+                ? 'bg-blue-500 text-white' 
+                : date.hasActivity 
+                  ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                  : 'hover:bg-gray-100'
+            }`"
+          >
+            {{ date.day }}
+          </div>
+        </div>
+      </div>
     </div>
-  </MainLayout>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { message } from 'ant-design-vue'
-import MainLayout from '@/layouts/MainLayout.vue'
-import {
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { 
+  ArrowLeft,
   TrendingUp,
-  Target,
-  Award,
-  Crown,
-  Flame,
-  BookOpen,
+  Star,
   Trophy,
-  Zap,
-  Check,
-  BarChart3,
-  Calendar,
+  Target,
   Clock,
-  Activity,
-  Gamepad2,
+  BookOpen,
   Headphones,
   PenTool,
-  MessageSquare,
-  Star,
-  Gift,
-  Users,
-  Lightbulb
+  MessageCircle,
+  Award,
+  Zap,
+  Calendar,
+  CheckCircle
 } from 'lucide-vue-next'
 
-// 响应式数据
-const timeRange = ref('week')
-const achievementModalVisible = ref(false)
-const goalModalVisible = ref(false)
-const selectedAchievement = ref(null)
+const router = useRouter()
 
-// 总体进度数据
-const overallProgress = ref(68)
-const completedLevels = ref(28)
-const totalPoints = ref(2450)
+// Current user info
+const currentUser = ref(JSON.parse(localStorage.getItem('user_info') || '{}'))
 
-// 当前等级信息
-const currentLevel = ref({
-  name: '学习达人',
-  title: 'Level 5',
-  level: 5
-})
+// Time period selection
+const selectedPeriod = ref('week')
+const timePeriods = [
+  { label: '本周', value: 'week' },
+  { label: '本月', value: 'month' },
+  { label: '本年', value: 'year' }
+]
 
-const currentLevelPoints = ref(2450)
-const nextLevelPoints = ref(3000)
-const levelProgress = computed(() => {
-  return Math.round((currentLevelPoints.value / nextLevelPoints.value) * 100)
-})
-
-// 学习连击数据
-const studyStreak = ref(12)
-const recentDays = ref([
-  { studied: true, isToday: false },
-  { studied: true, isToday: false },
-  { studied: false, isToday: false },
-  { studied: true, isToday: false },
-  { studied: true, isToday: false },
-  { studied: true, isToday: false },
-  { studied: true, isToday: true }
-])
-
-// 技能进度数据
-const skills = ref([
+// Overall statistics
+const overallStats = ref([
   {
-    name: '词汇',
-    level: 6,
-    progress: 85,
-    color: '#1890ff',
-    icon: BookOpen,
-    recentPoints: 120,
-    completedExercises: 45,
-    accuracy: 92
+    label: '学习天数',
+    value: '45',
+    change: 12,
+    icon: Calendar,
+    color: 'bg-blue-500'
   },
   {
-    name: '听力',
-    level: 4,
-    progress: 62,
-    color: '#52c41a',
-    icon: Headphones,
-    recentPoints: 80,
-    completedExercises: 28,
-    accuracy: 85
+    label: '完成课程',
+    value: '28',
+    change: 8,
+    icon: CheckCircle,
+    color: 'bg-green-500'
   },
   {
-    name: '语法',
-    level: 5,
-    progress: 78,
-    color: '#fa8c16',
-    icon: PenTool,
-    recentPoints: 95,
-    completedExercises: 32,
-    accuracy: 88
-  },
-  {
-    name: '口语',
-    level: 3,
-    progress: 45,
-    color: '#722ed1',
-    icon: MessageSquare,
-    recentPoints: 60,
-    completedExercises: 18,
-    accuracy: 78
-  }
-])
-
-// 成就数据
-const achievements = ref([
-  {
-    id: 1,
-    name: '初学者',
-    description: '完成第一个学习关卡',
+    label: '获得经验',
+    value: '2,450',
+    change: 15,
     icon: Star,
-    unlocked: true,
-    points: 50,
-    color: '#1890ff',
-    featured: false,
-    progress: 100,
-    current: 1,
-    target: 1
+    color: 'bg-yellow-500'
   },
   {
-    id: 2,
-    name: '词汇大师',
-    description: '学会100个新单词',
-    icon: BookOpen,
-    unlocked: true,
-    points: 200,
-    color: '#52c41a',
-    featured: true,
-    progress: 100,
-    current: 100,
-    target: 100
-  },
+    label: '学习时长',
+    value: '68h',
+    change: 5,
+    icon: Clock,
+    color: 'bg-purple-500'
+  }
+])
+
+// Current level information
+const currentLevel = ref({
+  level: 5,
+  title: '英语探索者',
+  description: '你已经掌握了基础英语技能',
+  currentXP: 2450,
+  nextLevelXP: 3000,
+  progress: 82,
+  nextTitle: '英语学者'
+})
+
+// Skills progress
+const skillsProgress = ref([
   {
-    id: 3,
-    name: '连击王者',
-    description: '连续学习7天',
-    icon: Flame,
-    unlocked: true,
-    points: 150,
-    color: '#fa8c16',
-    featured: false,
-    progress: 100,
-    current: 7,
-    target: 7
-  },
-  {
-    id: 4,
-    name: '完美主义者',
-    description: '在一次测试中获得100分',
-    icon: Trophy,
-    unlocked: false,
-    points: 300,
-    color: '#722ed1',
-    featured: false,
+    name: '词汇掌握',
     progress: 85,
-    current: 95,
-    target: 100
+    completed: 340,
+    total: 400,
+    timeSpent: 15,
+    icon: BookOpen,
+    color: 'bg-blue-500'
   },
   {
-    id: 5,
-    name: '社交达人',
-    description: '与10个同学互动',
-    icon: Users,
-    unlocked: false,
-    points: 100,
-    color: '#13c2c2',
-    featured: false,
+    name: '听力理解',
+    progress: 72,
+    completed: 144,
+    total: 200,
+    timeSpent: 12,
+    icon: Headphones,
+    color: 'bg-green-500'
+  },
+  {
+    name: '语法运用',
+    progress: 68,
+    completed: 102,
+    total: 150,
+    timeSpent: 18,
+    icon: PenTool,
+    color: 'bg-purple-500'
+  },
+  {
+    name: '口语表达',
     progress: 60,
-    current: 6,
-    target: 10
-  },
-  {
-    id: 6,
-    name: '探索者',
-    description: '解锁所有学习模块',
-    icon: Lightbulb,
-    unlocked: false,
-    points: 500,
-    color: '#eb2f96',
-    featured: true,
-    progress: 75,
-    current: 3,
-    target: 4
+    completed: 60,
+    total: 100,
+    timeSpent: 8,
+    icon: MessageCircle,
+    color: 'bg-orange-500'
   }
 ])
 
-// 本周学习数据
-const weeklyData = ref([
-  { label: '周一', minutes: 45 },
-  { label: '周二', minutes: 60 },
-  { label: '周三', minutes: 30 },
-  { label: '周四', minutes: 75 },
-  { label: '周五', minutes: 50 },
-  { label: '周六', minutes: 90 },
-  { label: '周日', minutes: 40 }
-])
-
-// 学习目标
-const learningGoals = ref([
-  {
-    id: 1,
-    name: '每日学习时长',
-    current: 45,
-    target: 60,
-    unit: '分钟',
-    color: '#1890ff',
-    maxValue: 180
-  },
-  {
-    id: 2,
-    name: '每周完成关卡',
-    current: 5,
-    target: 7,
-    unit: '个',
-    color: '#52c41a',
-    maxValue: 20
-  },
-  {
-    id: 3,
-    name: '每月新单词',
-    current: 85,
-    target: 100,
-    unit: '个',
-    color: '#fa8c16',
-    maxValue: 300
-  }
-])
-
-// 最近活动
+// Recent activities
 const recentActivities = ref([
   {
     id: 1,
-    title: '完成词汇练习',
-    description: '学习了10个关于动物的新单词',
-    time: new Date(Date.now() - 30 * 60 * 1000),
-    points: 50,
-    color: '#1890ff'
+    title: '完成词汇测试',
+    description: '动物单词测试 - 获得满分',
+    time: '2小时前',
+    score: 50,
+    icon: Trophy,
+    color: 'bg-yellow-500'
   },
   {
     id: 2,
-    title: '解锁新成就',
-    description: '获得"词汇大师"成就',
-    time: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    points: 200,
-    color: '#52c41a'
+    title: '听力练习',
+    description: '日常对话听力训练',
+    time: '4小时前',
+    score: 30,
+    icon: Headphones,
+    color: 'bg-green-500'
   },
   {
     id: 3,
-    title: '完成听力训练',
-    description: '完成日常对话听力练习',
-    time: new Date(Date.now() - 4 * 60 * 60 * 1000),
-    points: 30,
-    color: '#fa8c16'
+    title: '语法练习',
+    description: '现在进行时练习',
+    time: '昨天',
+    score: 25,
+    icon: PenTool,
+    color: 'bg-purple-500'
   },
   {
     id: 4,
-    title: '升级技能',
-    description: '词汇技能升级到6级',
-    time: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    points: 100,
-    color: '#722ed1'
+    title: '单词学习',
+    description: '学习了20个新单词',
+    time: '昨天',
+    score: 40,
+    icon: BookOpen,
+    color: 'bg-blue-500'
   }
 ])
 
-// 方法
-const showAchievementDetail = (achievement: any) => {
-  selectedAchievement.value = achievement
-  achievementModalVisible.value = true
-}
-
-const showGoalSetting = () => {
-  goalModalVisible.value = true
-}
-
-const saveGoals = () => {
-  message.success('学习目标已更新！')
-  goalModalVisible.value = false
-}
-
-const formatTime = (time: Date) => {
-  const now = new Date()
-  const diff = now.getTime() - time.getTime()
-  const minutes = Math.floor(diff / (1000 * 60))
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (minutes < 60) {
-    return `${minutes}分钟前`
-  } else if (hours < 24) {
-    return `${hours}小时前`
-  } else {
-    return `${days}天前`
+// Achievements
+const achievements = ref([
+  {
+    id: 1,
+    title: '初学者',
+    description: '完成第一课',
+    unlocked: true,
+    icon: Star,
+    color: 'bg-yellow-500'
+  },
+  {
+    id: 2,
+    title: '词汇达人',
+    description: '学会100个单词',
+    unlocked: true,
+    icon: BookOpen,
+    color: 'bg-blue-500'
+  },
+  {
+    id: 3,
+    title: '连续学习',
+    description: '连续学习7天',
+    unlocked: true,
+    icon: Zap,
+    color: 'bg-orange-500'
+  },
+  {
+    id: 4,
+    title: '听力高手',
+    description: '完成50次听力练习',
+    unlocked: false,
+    icon: Headphones,
+    color: 'bg-green-500'
+  },
+  {
+    id: 5,
+    title: '语法专家',
+    description: '语法测试满分',
+    unlocked: false,
+    icon: Award,
+    color: 'bg-purple-500'
+  },
+  {
+    id: 6,
+    title: '口语之星',
+    description: '完成口语评估',
+    unlocked: false,
+    icon: MessageCircle,
+    color: 'bg-red-500'
   }
-}
+])
+
+// Calendar data
+const weekDays = ['日', '一', '二', '三', '四', '五', '六']
+
+// Generate calendar days for current month
+const calendarDays = computed(() => {
+  const today = new Date()
+  const currentMonth = today.getMonth()
+  const currentYear = today.getFullYear()
+  const firstDay = new Date(currentYear, currentMonth, 1)
+  const lastDay = new Date(currentYear, currentMonth + 1, 0)
+  const startDate = new Date(firstDay)
+  startDate.setDate(startDate.getDate() - firstDay.getDay())
+  
+  const days = []
+  const studyDays = [5, 8, 12, 15, 18, 22, 25, 28] // Mock study days
+  
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(startDate)
+    date.setDate(startDate.getDate() + i)
+    
+    const isCurrentMonth = date.getMonth() === currentMonth
+    const isToday = date.toDateString() === today.toDateString()
+    const hasActivity = isCurrentMonth && studyDays.includes(date.getDate())
+    
+    if (isCurrentMonth) {
+      days.push({
+        date: date.toISOString(),
+        day: date.getDate(),
+        isToday,
+        hasActivity
+      })
+    }
+  }
+  
+  return days
+})
+
+onMounted(() => {
+  // Load user progress data
+  console.log('Loading progress data...')
+})
 </script>
 
-<style scoped lang="less">
+<style scoped>
 .progress-page {
-  max-width: 1400px;
-  margin: 0 auto;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.page-header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  font-weight: 700;
-  color: #1f2937;
-  margin: 0 0 8px 0;
-}
-
-.page-subtitle {
-  font-size: 16px;
-  color: #6b7280;
-  margin: 0;
-}
-
-.progress-overview {
-  margin-bottom: 40px;
-}
-
-.overview-card {
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  height: 280px;
-  display: flex;
-  flex-direction: column;
-}
-
-.card-header {
-  margin-bottom: 20px;
-}
-
-.card-title {
-  display: flex;
-  align-items: center;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
-// 主进度卡片
-.main-progress {
-  text-align: center;
-}
-
-.progress-circle {
-  margin: 20px 0;
-}
-
-.circle-progress {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: conic-gradient(#1890ff calc(var(--progress) * 1%), #f0f0f0 0);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
-  position: relative;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 12px;
-    border-radius: 50%;
-    background: white;
+/* Custom animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
-}
-
-.progress-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1f2937;
-  z-index: 1;
-}
-
-.progress-label {
-  font-size: 12px;
-  color: #6b7280;
-  z-index: 1;
-}
-
-.progress-stats {
-  display: flex;
-  justify-content: space-around;
-  margin-top: auto;
-}
-
-.stat-item {
-  text-align: center;
-}
-
-.stat-value {
-  display: block;
-  font-size: 20px;
-  font-weight: 700;
-  color: #1f2937;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-// 等级信息卡片
-.level-display {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.level-badge {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.level-icon {
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(135deg, #ffd700, #ffed4e);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #d48806;
-}
-
-.level-info-text {
-  flex: 1;
-}
-
-.level-name {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.level-title {
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.level-progress {
-  margin-top: auto;
-}
-
-.progress-bar {
-  height: 8px;
-  background: #f0f0f0;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #1890ff, #40a9ff);
-  border-radius: 4px;
-  transition: width 0.3s;
-}
-
-.progress-text {
-  font-size: 12px;
-  color: #6b7280;
-  text-align: center;
-}
-
-// 连击信息卡片
-.streak-display {
-  text-align: center;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.streak-number {
-  font-size: 48px;
-  font-weight: 700;
-  color: #fa8c16;
-  line-height: 1;
-}
-
-.streak-label {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 8px 0 20px 0;
-}
-
-.streak-calendar {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: auto;
-}
-
-.calendar-day {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  transition: all 0.3s;
-
-  &.active {
-    background: #fa8c16;
-  }
-
-  &.today {
-    border: 2px solid #1890ff;
-  }
-}
-
-.day-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: white;
-}
-
-// 技能部分
-.skills-section,
-.achievements-section,
-.statistics-section,
-.activities-section {
-  margin-bottom: 40px;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 20px;
-}
-
-.skill-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  }
-}
-
-.skill-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.skill-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.skill-info {
-  flex: 1;
-}
-
-.skill-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0 0 4px 0;
-}
-
-.skill-level {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.skill-progress {
-  margin-bottom: 16px;
-}
-
-.progress-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 8px;
-}
-
-.progress-text {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-}
-
-.points-text {
-  font-size: 12px;
-  color: #52c41a;
-  font-weight: 500;
-}
-
-.skill-stats {
-  display: flex;
-  justify-content: space-between;
-}
-
-.stat {
-  text-align: center;
-}
-
-.stat-label {
-  display: block;
-  font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 4px;
-}
-
-.stat-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-// 成就部分
-.achievements-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
-
-.achievement-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  cursor: pointer;
-  transition: all 0.3s;
-  position: relative;
-  opacity: 0.6;
-
-  &.unlocked {
+  to {
     opacity: 1;
-  }
-
-  &.featured {
-    border: 2px solid #1890ff;
-  }
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    transform: translateY(0);
   }
 }
 
-.achievement-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: #f0f0f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6b7280;
-  flex-shrink: 0;
-
-  .unlocked & {
-    background: linear-gradient(135deg, #ffd700, #ffed4e);
-    color: #d48806;
-  }
+.progress-page > * {
+  animation: fadeIn 0.6s ease-out;
 }
 
-.achievement-info {
-  flex: 1;
+/* Progress bar animations */
+.bg-blue-500,
+.bg-green-500,
+.bg-purple-500,
+.bg-orange-500 {
+  transition: width 0.8s ease-in-out;
 }
 
-.achievement-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0 0 8px 0;
+/* Hover effects */
+.hover\:shadow-md:hover {
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-.achievement-desc {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0 0 12px 0;
-  line-height: 1.4;
+/* Calendar hover effects */
+.aspect-square {
+  aspect-ratio: 1;
 }
 
-.achievement-progress {
-  margin-bottom: 8px;
+/* Button hover effects */
+button:hover {
+  transform: translateY(-1px);
 }
 
-.achievement-reward {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-  color: #52c41a;
-  font-weight: 500;
+button:active {
+  transform: translateY(0);
 }
 
-.achievement-badge {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #52c41a;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-// 统计部分
-.stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  height: 300px;
-  display: flex;
-  flex-direction: column;
-}
-
-.stat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.stat-title {
-  display: flex;
-  align-items: center;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
-.time-chart {
-  flex: 1;
-  display: flex;
-  align-items: end;
-  padding: 20px 0;
-}
-
-.chart-bars {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  width: 100%;
-  height: 100%;
-  gap: 8px;
-}
-
-.bar-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-}
-
-.bar-label {
-  font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 8px;
-}
-
-.bar-wrapper {
-  flex: 1;
-  width: 100%;
-  display: flex;
-  align-items: end;
-  justify-content: center;
-}
-
-.time-bar {
-  width: 100%;
-  max-width: 32px;
-  background: linear-gradient(180deg, #1890ff, #40a9ff);
-  border-radius: 4px 4px 0 0;
-  min-height: 4px;
-  position: relative;
-  cursor: pointer;
-  transition: all 0.3s;
-
-  &:hover {
-    opacity: 0.8;
-  }
-
-  &:hover .bar-tooltip {
-    opacity: 1;
-  }
-}
-
-.bar-tooltip {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.3s;
-  margin-bottom: 4px;
-}
-
-// 目标部分
-.goals-list {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.goal-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: #f9f9f9;
-  border-radius: 8px;
-}
-
-.goal-info {
-  flex: 1;
-}
-
-.goal-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-  margin-bottom: 8px;
-}
-
-.goal-progress {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.goal-text {
-  font-size: 12px;
-  color: #6b7280;
-  white-space: nowrap;
-}
-
-.goal-status {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #f0f0f0;
-  color: #6b7280;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  &.completed {
-    background: #52c41a;
-    color: white;
-  }
-}
-
-// 活动时间线
-.activities-timeline {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.activity-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 16px 0;
-  border-bottom: 1px solid #f0f0f0;
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.activity-time {
-  font-size: 12px;
-  color: #6b7280;
-  white-space: nowrap;
-  min-width: 60px;
-}
-
-.activity-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 6px;
-  flex-shrink: 0;
-}
-
-.activity-content {
-  flex: 1;
-}
-
-.activity-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-  margin-bottom: 4px;
-}
-
-.activity-desc {
-  font-size: 13px;
-  color: #6b7280;
-  margin-bottom: 8px;
-}
-
-.activity-reward {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-  color: #52c41a;
-  font-weight: 500;
-}
-
-// 弹窗样式
-.achievement-detail {
-  text-align: center;
-  padding: 20px 0;
-}
-
-.detail-icon {
-  width: 80px;
-  height: 80px;
-  border-radius: 20px;
-  background: #f0f0f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6b7280;
-  margin: 0 auto 20px;
-
-  &.unlocked {
-    background: linear-gradient(135deg, #ffd700, #ffed4e);
-    color: #d48806;
-  }
-}
-
-.detail-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0 0 12px 0;
-}
-
-.detail-desc {
-  color: #6b7280;
-  margin: 0 0 20px 0;
-  line-height: 1.5;
-}
-
-.detail-progress {
-  margin-bottom: 20px;
-}
-
-.detail-reward {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  color: #52c41a;
-  font-weight: 500;
-}
-
-.goal-setting {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.goal-setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.goal-label {
-  font-weight: 500;
-  color: #1f2937;
-}
-
-.goal-input {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.goal-unit {
-  color: #6b7280;
-  font-size: 14px;
-}
-
-// 响应式设计
-@media (max-width: 768px) {
-  .page-title {
-    font-size: 24px;
-  }
-
-  .overview-card {
-    height: auto;
-    min-height: 200px;
-  }
-
-  .achievements-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .achievement-card {
-    padding: 16px;
-  }
-
-  .stat-card {
-    height: 250px;
-    padding: 16px;
-  }
-
-  .activity-item {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .activity-time {
-    min-width: auto;
-  }
-}
-
-@media (max-width: 576px) {
-  .progress-circle {
-    margin: 16px 0;
-  }
-
-  .circle-progress {
-    width: 100px;
-    height: 100px;
-  }
-
-  .progress-value {
-    font-size: 20px;
-  }
-
-  .streak-number {
-    font-size: 36px;
-  }
-
-  .skill-card {
-    padding: 16px;
-  }
+/* Achievement card effects */
+.border-yellow-200 {
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.3);
 }
 </style>

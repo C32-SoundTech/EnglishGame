@@ -61,7 +61,13 @@ export const useAuthStore = defineStore('auth', () => {
   const lastActivity = ref<Date>(new Date())
 
   // 计算属性
-  const isAuthenticated = computed(() => !!user.value && !isSessionExpired.value)
+  const isAuthenticated = computed(() => {
+    const hasUser = !!user.value
+    const notExpired = !isSessionExpired.value
+    const result = hasUser && notExpired
+    console.log('isAuthenticated check:', { hasUser, notExpired, result, user: user.value?.email })
+    return result
+  })
   const isStudent = computed(() => user.value?.role === 'student')
   const isParent = computed(() => user.value?.role === 'parent')
   const isTeacher = computed(() => user.value?.role === 'teacher')
@@ -69,8 +75,18 @@ export const useAuthStore = defineStore('auth', () => {
   
   // 会话是否过期
   const isSessionExpired = computed(() => {
-    if (!sessionExpiry.value) return false
-    return new Date() > sessionExpiry.value
+    if (!sessionExpiry.value) {
+      console.log('No session expiry set, session not expired')
+      return false
+    }
+    const now = new Date()
+    const expired = now > sessionExpiry.value
+    console.log('Session expiry check:', { 
+      now: now.toISOString(), 
+      expiry: sessionExpiry.value.toISOString(), 
+      expired 
+    })
+    return expired
   })
   
   // 获取用户权限
@@ -568,10 +584,40 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 初始化认证状态 - 使用模拟数据
+  // 初始化认证状态 - 从本地存储加载用户数据
   const initialize = async () => {
-    // 模拟已登录状态，无需实际的session检查
-    await new Promise(resolve => setTimeout(resolve, 100))
+    try {
+      console.log('Auth store initializing...')
+      
+      // 从本地存储加载用户数据
+      const savedUser = storage.getItem(STORAGE_KEYS.USER_PROFILE)
+      const savedProfile = storage.getItem(STORAGE_KEYS.STUDENT_PROFILE)
+      
+      if (savedUser) {
+        console.log('Found saved user:', savedUser)
+        user.value = savedUser
+        
+        // 如果有学生档案，也加载
+        if (savedProfile) {
+          console.log('Found saved student profile:', savedProfile)
+          studentProfile.value = savedProfile
+        }
+        
+        // 更新最后活动时间
+        updateLastActivity()
+        
+        // 设置会话过期时间（如果没有设置的话）
+        if (!sessionExpiry.value) {
+          setSessionExpiry(24)
+        }
+        
+        console.log('Auth initialization completed, user authenticated:', isAuthenticated.value)
+      } else {
+        console.log('No saved user found, user not authenticated')
+      }
+    } catch (error) {
+      console.error('Error during auth initialization:', error)
+    }
   }
 
   return {

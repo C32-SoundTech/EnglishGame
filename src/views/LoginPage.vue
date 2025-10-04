@@ -1,106 +1,116 @@
 <template>
-  <div class="login-container">
-    <div class="login-card">
-      <!-- 头部Logo和标题 -->
-      <div class="login-header">
-        <div class="logo">
-          <BookOpen class="w-12 h-12 text-blue-500" />
+  <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div class="max-w-md w-full">
+      <!-- Logo 和标题 -->
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
+          <BookOpen class="w-8 h-8 text-white" />
         </div>
-        <h1 class="title">小学英语学习平台</h1>
-        <p class="subtitle">让英语学习变得有趣！</p>
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">小学英语学习平台</h1>
+        <p class="text-gray-600">让学习变得更有趣</p>
       </div>
 
       <!-- 登录表单 -->
-      <a-form
-        :model="formData"
-        :rules="rules"
-        @finish="handleLogin"
-        layout="vertical"
-        class="login-form"
-      >
-        <a-form-item name="email" label="邮箱">
-          <a-input
-            v-model:value="formData.email"
-            size="large"
-            placeholder="请输入邮箱"
+      <div class="bg-white rounded-2xl shadow-xl p-8">
+        <h2 class="text-2xl font-bold text-center text-gray-900 mb-6">登录</h2>
+        
+        <form @submit.prevent="handleLogin" class="space-y-6">
+          <div>
+            <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+              邮箱地址
+            </label>
+            <div class="relative">
+              <Mail class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                id="email"
+                v-model="form.email"
+                type="email"
+                required
+                class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                placeholder="请输入邮箱地址"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+              密码
+            </label>
+            <div class="relative">
+              <Lock class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                id="password"
+                v-model="form.password"
+                :type="showPassword ? 'text' : 'password'"
+                required
+                class="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                placeholder="请输入密码"
+              />
+              <button
+                type="button"
+                @click="showPassword = !showPassword"
+                class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <Eye v-if="showPassword" class="w-5 h-5" />
+                <EyeOff v-else class="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <label class="flex items-center">
+              <input
+                v-model="form.remember"
+                type="checkbox"
+                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span class="ml-2 text-sm text-gray-600">记住我</span>
+            </label>
+            <a href="#" class="text-sm text-blue-600 hover:text-blue-500">
+              忘记密码？
+            </a>
+          </div>
+
+          <button
+            type="submit"
+            :disabled="loading"
+            class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            <template #prefix>
-              <Mail class="w-4 h-4 text-gray-400" />
-            </template>
-          </a-input>
-        </a-form-item>
+            <Loader2 v-if="loading" class="w-5 h-5 animate-spin mr-2" />
+            {{ loading ? '登录中...' : '登录' }}
+          </button>
+        </form>
 
-        <a-form-item name="password" label="密码">
-          <a-input-password
-            v-model:value="formData.password"
-            size="large"
-            placeholder="请输入密码"
-          >
-            <template #prefix>
-              <Lock class="w-4 h-4 text-gray-400" />
-            </template>
-          </a-input-password>
-        </a-form-item>
-
-        <a-form-item>
-          <a-checkbox v-model:checked="formData.remember">
-            记住我
-          </a-checkbox>
-        </a-form-item>
-
-        <a-form-item>
-          <a-button
-            type="primary"
-            html-type="submit"
-            size="large"
-            :loading="loading"
-            class="login-button"
-            block
-          >
-            登录
-          </a-button>
-        </a-form-item>
-
-        <div class="form-footer">
-          <span>还没有账号？</span>
-          <a-button type="link" @click="goToRegister">
-            立即注册
-          </a-button>
+        <!-- 分割线 -->
+        <div class="mt-6 mb-6">
+          <div class="relative">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-gray-300"></div>
+            </div>
+            <div class="relative flex justify-center text-sm">
+              <span class="px-2 bg-white text-gray-500">或者</span>
+            </div>
+          </div>
         </div>
-      </a-form>
 
-      <!-- 快速登录选项 -->
-      <div class="quick-login">
-        <a-divider>
-          <span class="divider-text">快速体验</span>
-        </a-divider>
-        <a-button
-          type="default"
-          size="large"
-          @click="handleGuestLogin"
-          :loading="guestLoading"
-          class="guest-button"
-          block
-        >
-          <User class="w-4 h-4 mr-2" />
-          游客登录
-        </a-button>
+        <!-- 注册链接 -->
+        <div class="text-center">
+          <p class="text-sm text-gray-600">
+            还没有账号？
+            <router-link to="/register" class="text-blue-600 hover:text-blue-500 font-medium">
+              立即注册
+            </router-link>
+          </p>
+        </div>
       </div>
-    </div>
 
-    <!-- 装饰性元素 -->
-    <div class="decoration">
-      <div class="floating-element element-1">
-        <Star class="w-6 h-6 text-yellow-400" />
-      </div>
-      <div class="floating-element element-2">
-        <Heart class="w-5 h-5 text-pink-400" />
-      </div>
-      <div class="floating-element element-3">
-        <Smile class="w-7 h-7 text-green-400" />
-      </div>
-      <div class="floating-element element-4">
-        <Trophy class="w-6 h-6 text-orange-400" />
+      <!-- 演示账号 -->
+      <div class="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+        <h3 class="text-sm font-medium text-yellow-800 mb-2">演示账号</h3>
+        <p class="text-xs text-yellow-700">
+          邮箱: demo@example.com<br>
+          密码: demo123
+        </p>
       </div>
     </div>
   </div>
@@ -109,324 +119,47 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
-import { useAuthStore } from '@/stores/auth'
-import {
-  BookOpen,
-  Mail,
-  Lock,
-  User,
-  Star,
-  Heart,
-  Smile,
-  Trophy
-} from 'lucide-vue-next'
+import { BookOpen, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-vue-next'
 
 const router = useRouter()
-const authStore = useAuthStore()
 
 const loading = ref(false)
-const guestLoading = ref(false)
+const showPassword = ref(false)
 
-const formData = reactive({
+const form = reactive({
   email: '',
   password: '',
   remember: false
 })
 
-const rules = {
-  email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码至少6位', trigger: 'blur' }
-  ]
-}
-
-// 处理登录
 const handleLogin = async () => {
   loading.value = true
+  
   try {
-    const result = await authStore.signIn(formData.email, formData.password)
-    if (result.success) {
-      message.success('登录成功！')
-      router.push('/')
+    // 模拟登录请求
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // 简单的演示登录逻辑
+    if (form.email === 'demo@example.com' && form.password === 'demo123') {
+      // 保存登录状态
+      localStorage.setItem('user_token', 'demo_token')
+      localStorage.setItem('user_info', JSON.stringify({
+        id: 1,
+        name: '小明',
+        email: form.email,
+        avatar: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=cute%20cartoon%20student%20avatar&image_size=square'
+      }))
+      
+      // 跳转到首页
+      router.push('/home')
     } else {
-      message.error(result.error || '登录失败')
+      alert('邮箱或密码错误，请使用演示账号登录')
     }
   } catch (error) {
-    message.error('登录过程中发生错误')
+    console.error('登录失败:', error)
+    alert('登录失败，请重试')
   } finally {
     loading.value = false
   }
 }
-
-// 游客登录
-const handleGuestLogin = async () => {
-  guestLoading.value = true
-  try {
-    // 使用预设的游客账号
-    const result = await authStore.signIn('guest@example.com', 'guest123')
-    if (result.success) {
-      message.success('游客登录成功！')
-      router.push('/')
-    } else {
-      message.error('游客登录失败，请稍后重试')
-    }
-  } catch (error) {
-    message.error('游客登录过程中发生错误')
-  } finally {
-    guestLoading.value = false
-  }
-}
-
-// 跳转到注册页面
-const goToRegister = () => {
-  router.push('/register')
-}
 </script>
-
-<style scoped lang="less">
-.login-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  position: relative;
-  overflow: hidden;
-}
-
-.login-card {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  padding: 40px;
-  width: 100%;
-  max-width: 400px;
-  position: relative;
-  z-index: 10;
-}
-
-.login-header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.logo {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 16px;
-}
-
-.title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1f2937;
-  margin: 0 0 8px 0;
-}
-
-.subtitle {
-  color: #6b7280;
-  font-size: 16px;
-  margin: 0;
-}
-
-.login-form {
-  margin-bottom: 24px;
-
-  :deep(.ant-form-item-label) {
-    font-weight: 600;
-    color: #374151;
-  }
-
-  :deep(.ant-input-affix-wrapper) {
-    border-radius: 8px;
-    border: 2px solid #e5e7eb;
-    transition: all 0.3s;
-    padding: 8px 12px;
-    
-    .ant-input-prefix {
-      margin-right: 8px;
-      display: flex;
-      align-items: center;
-    }
-    
-    .ant-input {
-      font-size: 14px;
-      line-height: 1.5;
-      border: none;
-      box-shadow: none;
-      padding: 0;
-      background: transparent;
-      
-      &::placeholder {
-        color: #9ca3af;
-        font-size: 14px;
-      }
-    }
-
-    &:hover, &:focus, &.ant-input-affix-wrapper-focused {
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-  }
-  
-  :deep(.ant-input-password) {
-    .ant-input {
-      font-size: 14px;
-      line-height: 1.5;
-      
-      &::placeholder {
-        color: #9ca3af;
-        font-size: 14px;
-      }
-    }
-  }
-}
-
-.login-button {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  border: none;
-  border-radius: 8px;
-  height: 48px;
-  font-size: 16px;
-  font-weight: 600;
-  transition: all 0.3s;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
-  }
-}
-
-.form-footer {
-  text-align: center;
-  color: #6b7280;
-  
-  .ant-btn-link {
-    color: #3b82f6;
-    font-weight: 600;
-    padding: 0;
-  }
-}
-
-.quick-login {
-  margin-top: 24px;
-}
-
-.divider-text {
-  color: #9ca3af;
-  font-size: 14px;
-}
-
-.guest-button {
-  border: 2px dashed #d1d5db;
-  border-radius: 8px;
-  height: 48px;
-  color: #6b7280;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s;
-
-  &:hover {
-    border-color: #3b82f6;
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.05);
-  }
-}
-
-.decoration {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-}
-
-.floating-element {
-  position: absolute;
-  animation: float 6s ease-in-out infinite;
-
-  &.element-1 {
-    top: 10%;
-    left: 10%;
-    animation-delay: 0s;
-  }
-
-  &.element-2 {
-    top: 20%;
-    right: 15%;
-    animation-delay: 1s;
-  }
-
-  &.element-3 {
-    bottom: 30%;
-    left: 8%;
-    animation-delay: 2s;
-  }
-
-  &.element-4 {
-    bottom: 15%;
-    right: 10%;
-    animation-delay: 3s;
-  }
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-20px) rotate(10deg);
-  }
-}
-
-// 响应式设计
-@media (max-width: 480px) {
-  .login-container {
-    padding: 16px;
-  }
-
-  .login-card {
-    padding: 24px;
-  }
-
-  .title {
-    font-size: 24px;
-  }
-
-  .subtitle {
-    font-size: 14px;
-  }
-  
-  .login-form {
-    :deep(.ant-input-affix-wrapper) {
-      padding: 6px 10px;
-      
-      .ant-input {
-        font-size: 13px;
-        
-        &::placeholder {
-          font-size: 13px;
-        }
-      }
-    }
-    
-    :deep(.ant-input-password) {
-      .ant-input {
-        font-size: 13px;
-        
-        &::placeholder {
-          font-size: 13px;
-        }
-      }
-    }
-  }
-}
-</style>

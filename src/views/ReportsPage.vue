@@ -1,1398 +1,704 @@
 <template>
-  <MainLayout>
-    <div class="reports-page">
-      <!-- 页面标题 -->
-      <div class="page-header">
-        <h1 class="page-title">
-          <BarChart3 class="w-6 h-6 mr-3" />
-          学习报告
-        </h1>
-        <p class="page-subtitle">全面了解你的学习数据和成长轨迹</p>
-      </div>
-
-      <!-- 时间范围选择 -->
-      <div class="time-selector">
-        <a-radio-group v-model:value="selectedPeriod" button-style="solid" size="large">
-          <a-radio-button value="week">本周</a-radio-button>
-          <a-radio-button value="month">本月</a-radio-button>
-          <a-radio-button value="quarter">本季度</a-radio-button>
-          <a-radio-button value="year">本年</a-radio-button>
-        </a-radio-group>
-      </div>
-
-      <!-- 概览统计 -->
-      <div class="overview-stats">
-        <a-row :gutter="[24, 24]">
-          <a-col :xs="12" :md="6" v-for="stat in overviewStats" :key="stat.key">
-            <div class="stat-card">
-              <div class="stat-icon" :style="{ backgroundColor: stat.color + '20', color: stat.color }">
-                <component :is="stat.icon" class="w-6 h-6" />
-              </div>
-              <div class="stat-content">
-                <div class="stat-number">{{ stat.value }}</div>
-                <div class="stat-label">{{ stat.label }}</div>
-                <div class="stat-change" :class="stat.trend">
-                  <component :is="stat.trend === 'up' ? TrendingUp : TrendingDown" class="w-3 h-3 mr-1" />
-                  {{ stat.change }}
-                </div>
-              </div>
+  <div class="reports-page min-h-screen bg-gradient-to-br from-purple-50 to-pink-100">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-sm border-b">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+          <div class="flex items-center space-x-4">
+            <button @click="$router.go(-1)" class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <ArrowLeft class="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 class="text-xl font-semibold text-gray-900">学习报告</h1>
+          </div>
+          <div class="flex items-center space-x-4">
+            <button 
+              @click="generateReport"
+              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
+              <FileText class="w-4 h-4" />
+              <span>生成报告</span>
+            </button>
+            <div class="text-sm text-gray-600">
+              {{ currentUser?.name || '学生' }}
             </div>
-          </a-col>
-        </a-row>
+          </div>
+        </div>
       </div>
+    </nav>
 
-      <!-- 图表区域 -->
-      <LearningCharts
-        :study-time-data="studyTimeData"
-        :skill-data="skillData"
-        :category-data="categoryData"
-        :score-data="scoreData"
-        :activity-data="activityData"
-        :knowledge-data="knowledgeData"
-      />
-
-      <!-- 详细数据表格 -->
-      <div class="data-table-section">
-        <h3 class="section-title">
-          <FileText class="w-5 h-5 mr-2" />
-          详细学习记录
-        </h3>
-        <div class="table-card">
-          <a-table
-            :columns="tableColumns"
-            :data-source="tableData"
-            :pagination="{ pageSize: 10, showSizeChanger: true }"
-            size="middle"
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Report Period Selection -->
+      <div class="bg-white rounded-xl p-6 shadow-sm mb-8">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">报告时间范围</h2>
+          <div class="flex items-center space-x-2">
+            <Calendar class="w-4 h-4 text-gray-500" />
+            <span class="text-sm text-gray-600">最后更新：{{ lastUpdated }}</span>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <button
+            v-for="period in reportPeriods"
+            :key="period.value"
+            @click="selectedPeriod = period.value"
+            :class="`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              selectedPeriod === period.value
+                ? 'bg-blue-100 text-blue-700 border-2 border-blue-200'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`"
           >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'type'">
-                <a-tag :color="getTypeColor(record.type)">{{ record.type }}</a-tag>
-              </template>
-              <template v-if="column.key === 'score'">
-                <div class="score-cell">
-                  <span :class="getScoreClass(record.score)">{{ record.score }}分</span>
-                  <a-progress
-                    :percent="record.score"
-                    :show-info="false"
-                    size="small"
-                    :stroke-color="getScoreColor(record.score)"
-                  />
-                </div>
-              </template>
-              <template v-if="column.key === 'duration'">
-                <span class="duration-cell">
-                  <Clock class="w-3 h-3 mr-1" />
-                  {{ record.duration }}分钟
-                </span>
-              </template>
-              <template v-if="column.key === 'date'">
-                {{ formatDate(record.date) }}
-              </template>
-            </template>
-          </a-table>
+            {{ period.label }}
+          </button>
         </div>
       </div>
 
-      <!-- 学习进度和成就系统 -->
-      <LearningProgress />
-
-      <!-- 学习分析组件 -->
-      <LearningAnalytics 
-        :knowledge-data="knowledgeAnalysisData"
-        :efficiency-data="efficiencyAnalysisData"
-        :activity-data="activityData"
-      />
-
-      <!-- 学习建议 -->
-      <div class="suggestions-section">
-        <h3 class="section-title">
-          <Lightbulb class="w-5 h-5 mr-2" />
-          基于数据的学习建议
-        </h3>
-        <a-row :gutter="[16, 16]">
-          <a-col :xs="24" :md="12" :lg="8" v-for="suggestion in suggestions" :key="suggestion.id">
-            <div class="suggestion-card">
-              <div class="suggestion-icon" :style="{ backgroundColor: suggestion.color + '20', color: suggestion.color }">
-                <component :is="suggestion.icon" class="w-6 h-6" />
+      <!-- Overall Performance Summary -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <!-- Performance Score -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">综合表现</h3>
+            <TrendingUp class="w-5 h-5 text-green-500" />
+          </div>
+          <div class="text-center">
+            <div class="relative w-32 h-32 mx-auto mb-4">
+              <svg class="w-32 h-32 transform -rotate-90" viewBox="0 0 100 100">
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  stroke="#e5e7eb"
+                  stroke-width="6"
+                  fill="none"
+                />
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  stroke="#10b981"
+                  stroke-width="6"
+                  fill="none"
+                  :stroke-dasharray="`${overallScore * 2.51} 251`"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span class="text-2xl font-bold text-gray-900">{{ overallScore }}%</span>
+                <span class="text-xs text-gray-500">综合得分</span>
               </div>
-              <div class="suggestion-content">
-                <h4 class="suggestion-title">{{ suggestion.title }}</h4>
-                <p class="suggestion-desc">{{ suggestion.description }}</p>
-                <div class="suggestion-data">
-                  <span class="data-label">{{ suggestion.dataLabel }}：</span>
-                  <span class="data-value">{{ suggestion.dataValue }}</span>
+            </div>
+            <div class="space-y-2">
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">等级评定</span>
+                <span class="font-medium text-green-600">{{ performanceLevel }}</span>
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">班级排名</span>
+                <span class="font-medium text-blue-600">{{ classRank }}/{{ totalStudents }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Learning Time Analysis -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">学习时间分析</h3>
+            <Clock class="w-5 h-5 text-blue-500" />
+          </div>
+          <div class="space-y-4">
+            <div class="text-center">
+              <div class="text-3xl font-bold text-blue-600 mb-1">{{ totalStudyTime }}h</div>
+              <div class="text-sm text-gray-600">总学习时长</div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-600">日均学习</span>
+                <span class="text-sm font-medium">{{ dailyAverage }}min</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-600">最长连续</span>
+                <span class="text-sm font-medium">{{ longestStreak }}天</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-600">活跃天数</span>
+                <span class="text-sm font-medium">{{ activeDays }}天</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Achievement Summary -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">成就总结</h3>
+            <Award class="w-5 h-5 text-yellow-500" />
+          </div>
+          <div class="space-y-4">
+            <div class="text-center">
+              <div class="text-3xl font-bold text-yellow-600 mb-1">{{ totalAchievements }}</div>
+              <div class="text-sm text-gray-600">获得成就</div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div 
+                v-for="achievement in recentAchievements" 
+                :key="achievement.id"
+                class="text-center p-3 bg-yellow-50 rounded-lg"
+              >
+                <div :class="`w-8 h-8 rounded-full mx-auto mb-2 flex items-center justify-center ${achievement.color}`">
+                  <component :is="achievement.icon" class="w-4 h-4 text-white" />
+                </div>
+                <div class="text-xs font-medium text-gray-900">{{ achievement.title }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Analysis -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- Skills Analysis -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-semibold text-gray-900">技能分析</h3>
+            <BarChart3 class="w-5 h-5 text-purple-500" />
+          </div>
+          <div class="space-y-6">
+            <div 
+              v-for="skill in skillsAnalysis" 
+              :key="skill.name"
+              class="space-y-3"
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                  <div :class="`w-8 h-8 rounded-lg flex items-center justify-center ${skill.color}`">
+                    <component :is="skill.icon" class="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <div class="font-medium text-gray-900">{{ skill.name }}</div>
+                    <div class="text-xs text-gray-500">{{ skill.description }}</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-sm font-medium text-gray-900">{{ skill.score }}%</div>
+                  <div :class="`text-xs ${skill.trend > 0 ? 'text-green-600' : 'text-red-600'}`">
+                    {{ skill.trend > 0 ? '+' : '' }}{{ skill.trend }}%
+                  </div>
+                </div>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  :class="`h-2 rounded-full transition-all duration-500 ${skill.color.replace('bg-', 'bg-')}`"
+                  :style="{ width: `${skill.score}%` }"
+                ></div>
+              </div>
+              <div class="text-xs text-gray-600">
+                {{ skill.feedback }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Learning Pattern -->
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-semibold text-gray-900">学习模式分析</h3>
+            <Activity class="w-5 h-5 text-indigo-500" />
+          </div>
+          <div class="space-y-6">
+            <!-- Best Learning Time -->
+            <div>
+              <h4 class="text-sm font-medium text-gray-900 mb-3">最佳学习时段</h4>
+              <div class="grid grid-cols-4 gap-2">
+                <div 
+                  v-for="time in learningTimes" 
+                  :key="time.period"
+                  :class="`text-center p-3 rounded-lg ${
+                    time.isBest ? 'bg-indigo-100 border-2 border-indigo-200' : 'bg-gray-50'
+                  }`"
+                >
+                  <div class="text-xs font-medium text-gray-900">{{ time.period }}</div>
+                  <div class="text-xs text-gray-600">{{ time.efficiency }}%</div>
                 </div>
               </div>
             </div>
-          </a-col>
-        </a-row>
+
+            <!-- Learning Preferences -->
+            <div>
+              <h4 class="text-sm font-medium text-gray-900 mb-3">学习偏好</h4>
+              <div class="space-y-3">
+                <div 
+                  v-for="preference in learningPreferences" 
+                  :key="preference.type"
+                  class="flex items-center justify-between"
+                >
+                  <span class="text-sm text-gray-600">{{ preference.type }}</span>
+                  <div class="flex items-center space-x-2">
+                    <div class="w-20 bg-gray-200 rounded-full h-2">
+                      <div 
+                        class="h-2 bg-indigo-500 rounded-full transition-all duration-500"
+                        :style="{ width: `${preference.percentage}%` }"
+                      ></div>
+                    </div>
+                    <span class="text-sm font-medium text-gray-900">{{ preference.percentage }}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Difficulty Analysis -->
+            <div>
+              <h4 class="text-sm font-medium text-gray-900 mb-3">难点分析</h4>
+              <div class="space-y-2">
+                <div 
+                  v-for="difficulty in difficultyAreas" 
+                  :key="difficulty.area"
+                  class="flex items-center justify-between p-2 bg-red-50 rounded-lg"
+                >
+                  <span class="text-sm text-red-800">{{ difficulty.area }}</span>
+                  <span class="text-xs text-red-600">{{ difficulty.errorRate }}% 错误率</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- 导出功能 -->
-      <div class="export-section">
-        <a-space size="large">
-          <a-button size="large" @click="exportPDF">
-            <FileText class="w-4 h-4 mr-1" />
-            导出PDF报告
-          </a-button>
-          <a-button size="large" @click="exportExcel">
-            <Download class="w-4 h-4 mr-1" />
-            导出Excel数据
-          </a-button>
-          <a-button size="large" @click="shareReport">
-            <Share2 class="w-4 h-4 mr-1" />
-            分享报告
-          </a-button>
-        </a-space>
+      <!-- Recommendations -->
+      <div class="bg-white rounded-xl p-6 shadow-sm mb-8">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-lg font-semibold text-gray-900">个性化建议</h3>
+          <Lightbulb class="w-5 h-5 text-amber-500" />
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div 
+            v-for="recommendation in recommendations" 
+            :key="recommendation.id"
+            class="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+          >
+            <div class="flex items-start space-x-3">
+              <div :class="`w-8 h-8 rounded-lg flex items-center justify-center ${recommendation.color}`">
+                <component :is="recommendation.icon" class="w-4 h-4 text-white" />
+              </div>
+              <div class="flex-1">
+                <h4 class="text-sm font-medium text-gray-900 mb-2">{{ recommendation.title }}</h4>
+                <p class="text-xs text-gray-600 mb-3">{{ recommendation.description }}</p>
+                <div class="flex items-center justify-between">
+                  <span :class="`text-xs px-2 py-1 rounded-full ${recommendation.priorityColor}`">
+                    {{ recommendation.priority }}
+                  </span>
+                  <button class="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                    查看详情
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress Comparison -->
+      <div class="bg-white rounded-xl p-6 shadow-sm mb-8">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-lg font-semibold text-gray-900">进步对比</h3>
+          <TrendingUp class="w-5 h-5 text-green-500" />
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div 
+            v-for="comparison in progressComparisons" 
+            :key="comparison.metric"
+            class="text-center p-4 bg-gray-50 rounded-lg"
+          >
+            <div class="text-2xl font-bold text-gray-900 mb-1">
+              {{ comparison.current }}
+            </div>
+            <div class="text-sm text-gray-600 mb-2">{{ comparison.metric }}</div>
+            <div class="flex items-center justify-center space-x-2">
+              <span class="text-xs text-gray-500">vs 上期:</span>
+              <span :class="`text-xs font-medium ${
+                comparison.change > 0 ? 'text-green-600' : 'text-red-600'
+              }`">
+                {{ comparison.change > 0 ? '+' : '' }}{{ comparison.change }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export Options -->
+      <div class="bg-white rounded-xl p-6 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">导出报告</h3>
+          <Download class="w-5 h-5 text-gray-500" />
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <button
+            v-for="format in exportFormats"
+            :key="format.type"
+            @click="exportReport(format.type)"
+            class="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <component :is="format.icon" class="w-4 h-4 text-gray-600" />
+            <span class="text-sm text-gray-700">{{ format.label }}</span>
+          </button>
+        </div>
       </div>
     </div>
-  </MainLayout>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { message } from 'ant-design-vue'
-import MainLayout from '@/layouts/MainLayout.vue'
-import LearningCharts from '@/components/LearningCharts.vue'
-import LearningProgress from '@/components/LearningProgress.vue'
-import LearningAnalytics from '@/components/LearningAnalytics.vue'
-import {
-  BarChart3,
-  Clock,
-  PieChart,
-  TrendingUp,
-  TrendingDown,
-  Target,
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { 
+  ArrowLeft,
   FileText,
+  Calendar,
+  TrendingUp,
+  Clock,
+  Award,
+  BarChart3,
+  Activity,
   Lightbulb,
   Download,
-  Share2,
-  Trophy,
-  Gamepad2,
   BookOpen,
   Headphones,
-  Calendar,
-  Zap
+  PenTool,
+  MessageCircle,
+  Star,
+  Trophy,
+  Target,
+  Zap,
+  AlertTriangle,
+  CheckCircle,
+  Users,
+  FileDown,
+  Mail,
+  Printer
 } from 'lucide-vue-next'
 
-// 响应式数据
+const router = useRouter()
+
+// Current user info
+const currentUser = ref(JSON.parse(localStorage.getItem('user_info') || '{}'))
+
+// Report period selection
 const selectedPeriod = ref('month')
-const studyTimeType = ref('daily')
-
-// 概览统计数据
-const overviewStats = ref([
-  {
-    key: 'totalTime',
-    label: '学习时长',
-    value: '45.5h',
-    change: '+12%',
-    trend: 'up',
-    icon: Clock,
-    color: '#1890ff'
-  },
-  {
-    key: 'completedLevels',
-    label: '完成关卡',
-    value: '28',
-    change: '+8',
-    trend: 'up',
-    icon: Trophy,
-    color: '#52c41a'
-  },
-  {
-    key: 'avgScore',
-    label: '平均分数',
-    value: '87',
-    change: '+5',
-    trend: 'up',
-    icon: Target,
-    color: '#fa8c16'
-  },
-  {
-    key: 'studyDays',
-    label: '学习天数',
-    value: '22',
-    change: '+3',
-    trend: 'up',
-    icon: Calendar,
-    color: '#722ed1'
-  }
-])
-
-// 学习时长数据（用于ECharts组件）
-const studyTimeData = ref([
-  { date: '2024-01-15', duration: 45 },
-  { date: '2024-01-16', duration: 60 },
-  { date: '2024-01-17', duration: 30 },
-  { date: '2024-01-18', duration: 75 },
-  { date: '2024-01-19', duration: 50 },
-  { date: '2024-01-20', duration: 90 },
-  { date: '2024-01-21', duration: 40 }
-])
-
-// 学习类型分布数据（用于ECharts组件）
-const categoryData = ref([
-  { name: '词汇学习', value: 35, color: '#1890ff' },
-  { name: '听力训练', value: 25, color: '#52c41a' },
-  { name: '语法练习', value: 20, color: '#fa8c16' },
-  { name: '口语练习', value: 20, color: '#722ed1' }
-])
-
-// 成绩数据（用于ECharts组件）
-const scoreData = ref([
-  { date: '第1周', score: 75 },
-  { date: '第2周', score: 82 },
-  { date: '第3周', score: 78 },
-  { date: '第4周', score: 87 }
-])
-
-// 技能数据（用于ECharts组件）
-const skillData = ref([
-  { name: '听力', score: 85 },
-  { name: '口语', score: 78 },
-  { name: '阅读', score: 92 },
-  { name: '写作', score: 80 },
-  { name: '词汇', score: 88 },
-  { name: '语法', score: 82 }
-])
-
-// 学习活跃度数据
-const activityData = ref(() => {
-  const data = []
-  const startDate = new Date('2024-01-01')
-  for (let i = 0; i < 365; i++) {
-    const date = new Date(startDate)
-    date.setDate(date.getDate() + i)
-    data.push({
-      date: date.toISOString().split('T')[0],
-      value: Math.floor(Math.random() * 5)
-    })
-  }
-  return data
-})()
-
-// 知识点掌握度数据
-const knowledgeData = ref([
-  { name: '动物单词', mastery: 45, total: 50 },
-  { name: '颜色单词', mastery: 38, total: 40 },
-  { name: '数字单词', mastery: 28, total: 30 },
-  { name: '家庭成员', mastery: 22, total: 25 },
-  { name: '食物单词', mastery: 35, total: 45 },
-  { name: '一般现在时', mastery: 18, total: 20 },
-  { name: '一般过去时', mastery: 15, total: 20 },
-  { name: '现在进行时', mastery: 12, total: 15 }
-])
-
-// 学习分析数据
-const knowledgeAnalysisData = ref([
-  { name: '动物单词', mastery: 45, total: 50, subject: 'vocabulary', difficulty: 'easy', lastPracticed: '2024-01-20' },
-  { name: '颜色单词', mastery: 38, total: 40, subject: 'vocabulary', difficulty: 'easy', lastPracticed: '2024-01-19' },
-  { name: '数字单词', mastery: 28, total: 30, subject: 'vocabulary', difficulty: 'easy', lastPracticed: '2024-01-18' },
-  { name: '家庭成员', mastery: 22, total: 25, subject: 'vocabulary', difficulty: 'medium', lastPracticed: '2024-01-17' },
-  { name: '食物单词', mastery: 35, total: 45, subject: 'vocabulary', difficulty: 'medium', lastPracticed: '2024-01-16' },
-  { name: '一般现在时', mastery: 18, total: 20, subject: 'grammar', difficulty: 'medium', lastPracticed: '2024-01-15' },
-  { name: '一般过去时', mastery: 15, total: 20, subject: 'grammar', difficulty: 'hard', lastPracticed: '2024-01-14' },
-  { name: '现在进行时', mastery: 12, total: 15, subject: 'grammar', difficulty: 'medium', lastPracticed: '2024-01-13' },
-  { name: '听力理解', mastery: 25, total: 35, subject: 'listening', difficulty: 'hard', lastPracticed: '2024-01-12' }
-])
-
-const efficiencyAnalysisData = ref(() => {
-  const data = []
-  for (let i = 0; i < 30; i++) {
-    const date = new Date()
-    date.setDate(date.getDate() - i)
-    data.push({
-      date: date.toISOString().split('T')[0],
-      studyTime: Math.floor(Math.random() * 60) + 30,
-      accuracy: Math.floor(Math.random() * 30) + 70,
-      focusScore: Math.floor(Math.random() * 20) + 80
-    })
-  }
-  return data.reverse()
-})()
-
-// 智能学习分析洞察
-const analysisInsights = ref([
-  {
-    id: 1,
-    type: '学习效率',
-    title: '最佳学习时段',
-    description: '根据你的学习数据分析，下午2-4点是你学习效率最高的时段',
-    icon: Clock,
-    color: '#1890ff',
-    data: [
-      { label: '效率提升', value: '+25%', color: '#52c41a' },
-      { label: '专注时长', value: '45分钟', color: '#1890ff' }
-    ],
-    actionText: '设置学习提醒'
-  },
-  {
-    id: 2,
-    type: '知识薄弱点',
-    title: '语法练习需加强',
-    description: '语法练习的正确率相对较低，建议增加相关练习',
-    icon: BookOpen,
-    color: '#fa8c16',
-    data: [
-      { label: '当前正确率', value: '68%', color: '#fa8c16' },
-      { label: '目标正确率', value: '85%', color: '#52c41a' }
-    ],
-    actionText: '开始语法练习'
-  },
-  {
-    id: 3,
-    type: '学习习惯',
-    title: '连续学习表现优秀',
-    description: '你已经连续学习12天，保持了良好的学习习惯',
-    icon: Trophy,
-    color: '#52c41a',
-    data: [
-      { label: '连续天数', value: '12天', color: '#52c41a' },
-      { label: '目标天数', value: '30天', color: '#1890ff' }
-    ],
-    actionText: '查看奖励'
-  }
-])
-
-// 学习习惯分析
-const learningHabits = ref([
-  {
-    key: 'studyTime',
-    title: '平均学习时长',
-    value: '42分钟',
-    description: '每日平均学习时间',
-    trend: 'up',
-    change: '+8分钟',
-    icon: Clock,
-    color: '#1890ff'
-  },
-  {
-    key: 'consistency',
-    title: '学习一致性',
-    value: '85%',
-    description: '按计划完成学习的比例',
-    trend: 'up',
-    change: '+5%',
-    icon: Target,
-    color: '#52c41a'
-  },
-  {
-    key: 'difficulty',
-    title: '挑战难度',
-    value: '中等',
-    description: '当前学习内容难度',
-    trend: 'up',
-    change: '适中',
-    icon: Zap,
-    color: '#fa8c16'
-  },
-  {
-    key: 'engagement',
-    title: '参与度',
-    value: '92%',
-    description: '学习过程中的参与程度',
-    trend: 'up',
-    change: '+3%',
-    icon: Gamepad2,
-    color: '#722ed1'
-  }
-])
-
-// 掌握程度等级
-const masteryLevels = ref([
-  { level: 0, label: '未学习', color: '#f5f5f5' },
-  { level: 1, label: '初学', color: '#ffccc7' },
-  { level: 2, label: '了解', color: '#ffd666' },
-  { level: 3, label: '熟练', color: '#95de64' },
-  { level: 4, label: '精通', color: '#52c41a' }
-])
-
-// 知识点主题
-const knowledgeTopics = ref([
-  {
-    id: 1,
-    name: '词汇学习',
-    points: [
-      { id: 1, name: '动物', mastery: 85 },
-      { id: 2, name: '颜色', mastery: 92 },
-      { id: 3, name: '数字', mastery: 78 },
-      { id: 4, name: '家庭', mastery: 88 },
-      { id: 5, name: '食物', mastery: 75 },
-      { id: 6, name: '身体', mastery: 65 }
-    ]
-  },
-  {
-    id: 2,
-    name: '语法知识',
-    points: [
-      { id: 7, name: '现在时', mastery: 90 },
-      { id: 8, name: '过去时', mastery: 75 },
-      { id: 9, name: '进行时', mastery: 80 },
-      { id: 10, name: '疑问句', mastery: 70 },
-      { id: 11, name: '否定句', mastery: 85 },
-      { id: 12, name: '复数', mastery: 95 }
-    ]
-  }
-])
-
-// 家长查看数据
-const parentSummary = ref({
-  weeklyTime: 8.5,
-  completedExercises: 156,
-  averageAccuracy: 87,
-  streak: 12,
-  performance: {
-    score: 87,
-    level: 'excellent',
-    title: '表现优秀',
-    description: '孩子在本周的学习中表现出色，各项指标都达到了预期目标。'
-  }
-})
-
-// 家长建议
-const parentSuggestions = ref([
-  {
-    id: 1,
-    title: '鼓励持续学习',
-    description: '孩子已经连续学习12天，建议给予适当的奖励和鼓励',
-    icon: Trophy,
-    color: '#52c41a',
-    tips: [
-      '设置小目标，达成后给予奖励',
-      '与孩子一起制定学习计划',
-      '关注孩子的学习情绪变化'
-    ]
-  },
-  {
-    id: 2,
-    title: '加强语法练习',
-    description: '语法部分相对薄弱，建议增加相关练习时间',
-    icon: BookOpen,
-    color: '#fa8c16',
-    tips: [
-      '每天安排15分钟语法练习',
-      '通过游戏化方式学习语法',
-      '结合实际情境练习语法'
-    ]
-  }
-])
-
-// 表格列定义
-const tableColumns = [
-  { title: '日期', dataIndex: 'date', key: 'date', width: 120, fixed: 'left' },
-  { title: '学习类型', dataIndex: 'type', key: 'type', width: 100 },
-  { title: '内容', dataIndex: 'content', key: 'content', ellipsis: true },
-  { title: '时长', dataIndex: 'duration', key: 'duration', width: 100 },
-  { title: '得分', dataIndex: 'score', key: 'score', width: 120 },
-  { title: '操作', key: 'action', width: 150, fixed: 'right' }
+const reportPeriods = [
+  { label: '本周', value: 'week' },
+  { label: '本月', value: 'month' },
+  { label: '本季度', value: 'quarter' },
+  { label: '本学期', value: 'semester' },
+  { label: '自定义', value: 'custom' }
 ]
 
-// 表格数据
-const tableData = ref([
-  {
-    key: '1',
-    date: new Date('2024-01-20'),
-    type: '词汇学习',
-    content: '动物单词学习',
-    duration: 30,
-    score: 92
-  },
-  {
-    key: '2',
-    date: new Date('2024-01-20'),
-    type: '听力训练',
-    content: '日常对话听力',
-    duration: 25,
-    score: 85
-  },
-  {
-    key: '3',
-    date: new Date('2024-01-19'),
-    type: '语法练习',
-    content: '一般现在时练习',
-    duration: 20,
-    score: 78
-  },
-  {
-    key: '4',
-    date: new Date('2024-01-19'),
-    type: '口语练习',
-    content: '自我介绍练习',
-    duration: 35,
-    score: 88
-  },
-  {
-    key: '5',
-    date: new Date('2024-01-18'),
-    type: '词汇学习',
-    content: '颜色单词学习',
-    duration: 28,
-    score: 95
-  }
-])
+// Last updated time
+const lastUpdated = ref('2024年1月15日 14:30')
 
-// 学习建议数据
-const suggestions = ref([
+// Overall performance data
+const overallScore = ref(85)
+const performanceLevel = ref('优秀')
+const classRank = ref(3)
+const totalStudents = ref(25)
+
+// Learning time data
+const totalStudyTime = ref(68)
+const dailyAverage = ref(45)
+const longestStreak = ref(12)
+const activeDays = ref(22)
+
+// Achievement data
+const totalAchievements = ref(8)
+const recentAchievements = ref([
   {
     id: 1,
-    title: '加强语法练习',
-    description: '你的语法练习正确率为68%，建议多做相关练习题',
-    dataLabel: '当前正确率',
-    dataValue: '68%',
+    title: '词汇达人',
     icon: BookOpen,
-    color: '#fa8c16'
+    color: 'bg-blue-500'
   },
   {
     id: 2,
-    title: '保持听力训练',
-    description: '听力能力表现优秀，继续保持每日练习',
-    dataLabel: '听力得分',
-    dataValue: '85分',
-    icon: Headphones,
-    color: '#52c41a'
+    title: '连续学习',
+    icon: Zap,
+    color: 'bg-orange-500'
   },
   {
     id: 3,
-    title: '增加口语练习',
-    description: '口语练习时间较少，建议增加练习频率',
-    dataLabel: '本周练习',
-    dataValue: '2次',
-    icon: Gamepad2,
-    color: '#722ed1'
+    title: '听力高手',
+    icon: Headphones,
+    color: 'bg-green-500'
+  },
+  {
+    id: 4,
+    title: '语法专家',
+    icon: Award,
+    color: 'bg-purple-500'
   }
 ])
 
-// 计算属性
-const filteredTableData = computed(() => {
-  let filtered = [...tableData.value]
-  
-  if (tableFilter.value.type) {
-    filtered = filtered.filter(item => item.type === tableFilter.value.type)
+// Skills analysis
+const skillsAnalysis = ref([
+  {
+    name: '词汇掌握',
+    description: '单词记忆与运用能力',
+    score: 88,
+    trend: 5,
+    icon: BookOpen,
+    color: 'bg-blue-500',
+    feedback: '词汇量增长稳定，建议加强词汇在句子中的运用练习'
+  },
+  {
+    name: '听力理解',
+    description: '英语听力理解能力',
+    score: 75,
+    trend: 8,
+    icon: Headphones,
+    color: 'bg-green-500',
+    feedback: '听力理解能力有显著提升，可以尝试更复杂的听力材料'
+  },
+  {
+    name: '语法运用',
+    description: '语法规则掌握与应用',
+    score: 82,
+    trend: 3,
+    icon: PenTool,
+    color: 'bg-purple-500',
+    feedback: '语法基础扎实，建议多做综合性语法练习'
+  },
+  {
+    name: '口语表达',
+    description: '英语口语交流能力',
+    score: 70,
+    trend: -2,
+    icon: MessageCircle,
+    color: 'bg-orange-500',
+    feedback: '口语表达需要加强，建议增加口语练习时间'
   }
-  
-  if (tableFilter.value.dateRange && tableFilter.value.dateRange.length === 2) {
-    const [start, end] = tableFilter.value.dateRange
-    filtered = filtered.filter(item => {
-      const itemDate = new Date(item.date)
-      return itemDate >= start && itemDate <= end
-    })
+])
+
+// Learning pattern data
+const learningTimes = ref([
+  { period: '早晨', efficiency: 85, isBest: true },
+  { period: '上午', efficiency: 78, isBest: false },
+  { period: '下午', efficiency: 72, isBest: false },
+  { period: '晚上', efficiency: 68, isBest: false }
+])
+
+const learningPreferences = ref([
+  { type: '游戏学习', percentage: 45 },
+  { type: '听力练习', percentage: 30 },
+  { type: '阅读理解', percentage: 15 },
+  { type: '语法练习', percentage: 10 }
+])
+
+const difficultyAreas = ref([
+  { area: '复杂语法结构', errorRate: 25 },
+  { area: '长句理解', errorRate: 18 },
+  { area: '语音识别', errorRate: 15 }
+])
+
+// Recommendations
+const recommendations = ref([
+  {
+    id: 1,
+    title: '加强口语练习',
+    description: '建议每天进行15分钟口语练习，提高表达流利度',
+    priority: '高优先级',
+    priorityColor: 'bg-red-100 text-red-800',
+    icon: MessageCircle,
+    color: 'bg-red-500'
+  },
+  {
+    id: 2,
+    title: '复习语法规则',
+    description: '重点复习时态和语态的使用，巩固语法基础',
+    priority: '中优先级',
+    priorityColor: 'bg-yellow-100 text-yellow-800',
+    icon: PenTool,
+    color: 'bg-yellow-500'
+  },
+  {
+    id: 3,
+    title: '扩展词汇量',
+    description: '学习更多高频词汇，提高阅读理解能力',
+    priority: '中优先级',
+    priorityColor: 'bg-yellow-100 text-yellow-800',
+    icon: BookOpen,
+    color: 'bg-blue-500'
+  },
+  {
+    id: 4,
+    title: '增加听力训练',
+    description: '多听英语对话和短文，提高听力理解速度',
+    priority: '低优先级',
+    priorityColor: 'bg-green-100 text-green-800',
+    icon: Headphones,
+    color: 'bg-green-500'
+  },
+  {
+    id: 5,
+    title: '保持学习节奏',
+    description: '继续保持每日学习习惯，稳步提升英语水平',
+    priority: '低优先级',
+    priorityColor: 'bg-green-100 text-green-800',
+    icon: Target,
+    color: 'bg-indigo-500'
+  },
+  {
+    id: 6,
+    title: '参与互动学习',
+    description: '多参与课堂互动和小组讨论，提高交流能力',
+    priority: '中优先级',
+    priorityColor: 'bg-yellow-100 text-yellow-800',
+    icon: Users,
+    color: 'bg-purple-500'
   }
-  
-  return filtered
-})
+])
 
-// 工具函数
-const formatDate = (date: Date) => {
-  return date.toLocaleDateString('zh-CN')
-}
-
-const getTypeColor = (type: string) => {
-  const colors = {
-    '词汇学习': 'blue',
-    '听力训练': 'green',
-    '语法练习': 'orange',
-    '口语练习': 'purple'
+// Progress comparisons
+const progressComparisons = ref([
+  {
+    metric: '平均分数',
+    current: '85分',
+    change: 8
+  },
+  {
+    metric: '完成练习',
+    current: '156个',
+    change: 23
+  },
+  {
+    metric: '学习时长',
+    current: '68小时',
+    change: 12
   }
-  return colors[type] || 'default'
+])
+
+// Export formats
+const exportFormats = ref([
+  { type: 'pdf', label: 'PDF报告', icon: FileDown },
+  { type: 'email', label: '邮件发送', icon: Mail },
+  { type: 'print', label: '打印报告', icon: Printer }
+])
+
+// Methods
+const generateReport = () => {
+  console.log('Generating new report...')
+  // Simulate report generation
+  setTimeout(() => {
+    lastUpdated.value = new Date().toLocaleString('zh-CN')
+  }, 1000)
 }
 
-const getScoreClass = (score: number) => {
-  if (score >= 90) return 'text-green-500 font-semibold'
-  if (score >= 80) return 'text-blue-500 font-semibold'
-  if (score >= 70) return 'text-orange-500 font-semibold'
-  return 'text-red-500 font-semibold'
-}
-
-const getScoreColor = (score: number) => {
-  if (score >= 90) return '#52c41a'
-  if (score >= 80) return '#1890ff'
-  if (score >= 70) return '#fa8c16'
-  return '#ff4d4f'
-}
-
-const getMasteryColor = (mastery: number) => {
-  if (mastery >= 90) return '#52c41a'
-  if (mastery >= 75) return '#95de64'
-  if (mastery >= 60) return '#ffd666'
-  if (mastery >= 30) return '#ffccc7'
-  return '#f5f5f5'
-}
-
-// 事件处理函数
-const handleInsightAction = (insight: any) => {
-  message.info(`执行操作：${insight.actionText}`)
-}
-
-const showKnowledgeDetail = (point: any) => {
-  message.info(`查看知识点详情：${point.name}`)
-}
-
-const resetTableFilter = () => {
-  tableFilter.value = {
-    type: undefined,
-    dateRange: undefined
+const exportReport = (format: string) => {
+  console.log(`Exporting report as ${format}`)
+  // Handle different export formats
+  switch (format) {
+    case 'pdf':
+      // Generate PDF
+      break
+    case 'email':
+      // Send via email
+      break
+    case 'print':
+      // Print report
+      window.print()
+      break
   }
 }
 
-const viewDetail = (record: any) => {
-  message.info(`查看详情：${record.content}`)
-}
-
-const retryExercise = (record: any) => {
-  message.info(`重新练习：${record.content}`)
-}
-
-const applySuggestion = (suggestion: any) => {
-  message.success(`开始学习：${suggestion.title}`)
-}
-
-const dismissSuggestion = (suggestion: any) => {
-  message.info(`已忽略建议：${suggestion.title}`)
-}
-
-const exportPDF = async () => {
-  exportLoading.value.pdf = true
-  try {
-    // 模拟导出过程
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    message.success('PDF报告导出成功！')
-  } catch (error) {
-    message.error('导出失败，请重试')
-  } finally {
-    exportLoading.value.pdf = false
-  }
-}
-
-const exportExcel = async () => {
-  exportLoading.value.excel = true
-  try {
-    // 模拟导出过程
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    message.success('Excel数据导出成功！')
-  } catch (error) {
-    message.error('导出失败，请重试')
-  } finally {
-    exportLoading.value.excel = false
-  }
-}
-
-const shareReport = async () => {
-  exportLoading.value.share = true
-  try {
-    // 模拟分享过程
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    message.success('报告分享链接已生成！')
-  } catch (error) {
-    message.error('分享失败，请重试')
-  } finally {
-    exportLoading.value.share = false
-  }
-}
-
-const generateWeeklyReport = () => {
-  message.info('正在生成周报...')
-}
-
-const scheduleReport = () => {
-  message.info('设置定时报告...')
-}
-
-// 监听家长模式切换
-watch(isParentMode, (newValue) => {
-  if (newValue) {
-    message.info('已切换到家长查看模式')
-  } else {
-    message.info('已切换到学生模式')
-  }
+onMounted(() => {
+  // Load report data
+  console.log('Loading report data...')
 })
 </script>
 
-<style scoped lang="less">
+<style scoped>
 .reports-page {
-  padding: 24px;
-  background: #f5f7fa;
-  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.page-header {
-  text-align: center;
-  margin-bottom: 32px;
-  
-  .page-title {
-    font-size: 28px;
-    font-weight: bold;
-    color: #1a1a1a;
-    margin: 0 0 8px 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* Custom animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
-  
-  .page-subtitle {
-    font-size: 16px;
-    color: #6b7280;
-    margin: 0;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-.time-selector {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 32px;
+.reports-page > * {
+  animation: fadeIn 0.6s ease-out;
 }
 
-.overview-stats {
-  margin-bottom: 32px;
-  
-  .stat-card {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    transition: all 0.3s;
-    
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    }
-  }
-  
-  .stat-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  
-  .stat-content {
-    flex: 1;
-  }
-  
-  .stat-number {
-    font-size: 24px;
-    font-weight: bold;
-    color: #1a1a1a;
-    margin-bottom: 4px;
-  }
-  
-  .stat-label {
-    font-size: 14px;
-    color: #6b7280;
-    margin-bottom: 8px;
-  }
-  
-  .stat-change {
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    
-    &.up {
-      color: #52c41a;
-    }
-    
-    &.down {
-      color: #ff4d4f;
-    }
-  }
+/* Progress bar animations */
+.bg-blue-500,
+.bg-green-500,
+.bg-purple-500,
+.bg-orange-500,
+.bg-indigo-500 {
+  transition: width 0.8s ease-in-out;
 }
 
-.analysis-insights {
-  margin-bottom: 32px;
-  
-  .insight-card {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    height: 100%;
-    transition: all 0.3s;
-    
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    }
-  }
-  
-  .insight-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-  
-  .insight-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .insight-type {
-    font-size: 12px;
-    color: #6b7280;
-    background: #f3f4f6;
-    padding: 4px 8px;
-    border-radius: 4px;
-  }
-  
-  .insight-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 8px 0;
-  }
-  
-  .insight-description {
-    font-size: 14px;
-    color: #6b7280;
-    margin: 0 0 16px 0;
-    line-height: 1.5;
-  }
-  
-  .insight-data {
-    margin-bottom: 16px;
-  }
-  
-  .data-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-  
-  .data-label {
-    font-size: 14px;
-    color: #6b7280;
-  }
-  
-  .data-value {
-    font-size: 14px;
-    font-weight: 600;
-  }
-  
-  .insight-action {
-    text-align: right;
-  }
+/* Hover effects */
+.hover\:shadow-md:hover {
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-.habit-analysis {
-  margin-bottom: 32px;
-  
-  .habit-card {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    text-align: center;
-    transition: all 0.3s;
-    
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    }
-  }
-  
-  .habit-icon {
-    width: 60px;
-    height: 60px;
-    border-radius: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 16px;
-  }
-  
-  .habit-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 8px 0;
-  }
-  
-  .habit-value {
-    font-size: 24px;
-    font-weight: bold;
-    color: #1890ff;
-    margin-bottom: 8px;
-  }
-  
-  .habit-description {
-    font-size: 14px;
-    color: #6b7280;
-    margin-bottom: 12px;
-  }
-  
-  .habit-trend {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: 500;
-  }
+/* Button hover effects */
+button:hover {
+  transform: translateY(-1px);
 }
 
-.knowledge-heatmap {
-  margin-bottom: 32px;
-  
-  .heatmap-container {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  }
-  
-  .heatmap-legend {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-  }
-  
-  .legend-label {
-    font-size: 14px;
-    color: #6b7280;
-    font-weight: 500;
-  }
-  
-  .legend-colors {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  
-  .legend-color {
-    width: 16px;
-    height: 16px;
-    border-radius: 3px;
-    border: 1px solid #e5e7eb;
-  }
-  
-  .legend-text {
-    font-size: 12px;
-    color: #6b7280;
-  }
-  
-  .knowledge-grid {
-    display: grid;
-    gap: 24px;
-  }
-  
-  .knowledge-topic {
-    .topic-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #1a1a1a;
-      margin: 0 0 12px 0;
-    }
-    
-    .topic-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 8px;
-    }
-    
-    .knowledge-point {
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #e5e7eb;
-      cursor: pointer;
-      transition: all 0.3s;
-      text-align: center;
-      
-      &:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      }
-      
-      .point-name {
-        display: block;
-        font-size: 14px;
-        font-weight: 500;
-        color: #1a1a1a;
-        margin-bottom: 4px;
-      }
-      
-      .point-mastery {
-        font-size: 12px;
-        color: #6b7280;
-      }
-    }
-  }
+button:active {
+  transform: translateY(0);
 }
 
-.parent-view {
-  margin-bottom: 32px;
-  
-  .parent-summary {
-    margin-bottom: 32px;
-  }
-  
-  .summary-card {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    height: 100%;
-  }
-  
-  .summary-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 16px 0;
-  }
-  
-  .summary-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-  
-  .summary-label {
-    font-size: 14px;
-    color: #6b7280;
-  }
-  
-  .summary-value {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a1a1a;
-  }
-  
-  .performance-rating {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-  }
-  
-  .rating-circle {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    
-    &.excellent {
-      background: linear-gradient(135deg, #52c41a, #73d13d);
-      color: white;
-    }
-    
-    &.good {
-      background: linear-gradient(135deg, #1890ff, #40a9ff);
-      color: white;
-    }
-    
-    &.average {
-      background: linear-gradient(135deg, #fa8c16, #ffa940);
-      color: white;
-    }
-  }
-  
-  .rating-text {
-    font-size: 24px;
-    font-weight: bold;
-  }
-  
-  .rating-label {
-    font-size: 12px;
-  }
-  
-  .rating-description {
-    flex: 1;
-  }
-  
-  .rating-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 8px 0;
-  }
-  
-  .rating-desc {
-    font-size: 14px;
-    color: #6b7280;
-    margin: 0;
-    line-height: 1.5;
-  }
-  
-  .parent-suggestions {
-    .suggestions-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: #1a1a1a;
-      margin: 0 0 16px 0;
-    }
-    
-    .suggestions-list {
-      display: grid;
-      gap: 16px;
-    }
-    
-    .parent-suggestion-card {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-      display: flex;
-      gap: 16px;
-    }
-    
-    .suggestion-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    
-    .suggestion-content {
-      flex: 1;
-    }
-    
-    .suggestion-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: #1a1a1a;
-      margin: 0 0 8px 0;
-    }
-    
-    .suggestion-desc {
-      font-size: 14px;
-      color: #6b7280;
-      margin: 0 0 16px 0;
-      line-height: 1.5;
-    }
-    
-    .suggestion-tips {
-      .tip-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 8px;
-        margin-bottom: 8px;
-        font-size: 14px;
-        color: #4b5563;
-        
-        &:last-child {
-          margin-bottom: 0;
-        }
-      }
-    }
-  }
+/* Card hover effects */
+.hover\:shadow-md:hover {
+  transform: translateY(-2px);
 }
 
-.data-table-section {
-  margin-bottom: 32px;
-  
-  .table-controls {
-    margin-bottom: 16px;
-  }
-  
-  .table-card {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  }
-  
-  .score-cell {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  
-  .duration-cell {
-    display: flex;
-    align-items: center;
-    color: #6b7280;
-  }
+/* Gradient backgrounds */
+.bg-gradient-to-br {
+  background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
 }
 
-.suggestions-section {
-  margin-bottom: 32px;
-  
-  .suggestion-card {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    height: 100%;
-    transition: all 0.3s;
-    
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    }
-  }
-  
-  .suggestion-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 16px;
-  }
-  
-  .suggestion-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin: 0 0 8px 0;
-  }
-  
-  .suggestion-desc {
-    font-size: 14px;
-    color: #6b7280;
-    margin: 0 0 16px 0;
-    line-height: 1.5;
-  }
-  
-  .suggestion-data {
-    margin-bottom: 16px;
-    padding: 12px;
-    background: #f9fafb;
-    border-radius: 8px;
-  }
-  
-  .data-label {
-    font-size: 14px;
-    color: #6b7280;
-  }
-  
-  .data-value {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1890ff;
-  }
-  
-  .suggestion-actions {
-    display: flex;
-    gap: 8px;
-  }
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
 }
 
-.export-section {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  
-  .export-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    
-    .section-title {
-      margin: 0;
-    }
-  }
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
 }
 
-.section-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0 0 20px 0;
-  display: flex;
-  align-items: center;
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
 }
 
-// 响应式设计
-@media (max-width: 768px) {
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Print styles */
+@media print {
   .reports-page {
-    padding: 16px;
+    background: white !important;
   }
   
-  .page-header {
-    .page-title {
-      font-size: 24px;
-    }
+  nav {
+    display: none !important;
   }
   
-  .overview-stats {
-    .stat-card {
-      padding: 16px;
-      gap: 12px;
-    }
-    
-    .stat-icon {
-      width: 40px;
-      height: 40px;
-    }
-    
-    .stat-number {
-      font-size: 20px;
-    }
-  }
-  
-  .analysis-insights,
-  .habit-analysis,
-  .suggestions-section {
-    .ant-col {
-      margin-bottom: 16px;
-    }
-  }
-  
-  .knowledge-heatmap {
-    .topic-grid {
-      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    }
-  }
-  
-  .parent-view {
-    .performance-rating {
-      flex-direction: column;
-      text-align: center;
-      gap: 16px;
-    }
-    
-    .parent-suggestion-card {
-      flex-direction: column;
-      text-align: center;
-    }
-  }
-  
-  .export-section {
-    .export-header {
-      flex-direction: column;
-      gap: 16px;
-      align-items: stretch;
-    }
-    
-    .ant-space {
-      justify-content: center;
-    }
+  .shadow-sm {
+    box-shadow: none !important;
   }
 }
 </style>

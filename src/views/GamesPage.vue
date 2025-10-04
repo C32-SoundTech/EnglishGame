@@ -1,596 +1,515 @@
 <template>
-  <MainLayout>
-    <div class="games-page">
-      <!-- 页面标题 -->
-      <div class="page-header">
-        <h1 class="page-title">
-          <Gamepad2 class="w-6 h-6 mr-3" />
-          游戏学习
-        </h1>
-        <p class="page-subtitle">通过有趣的游戏学习英语，让学习变得更加快乐！</p>
-      </div>
-
-      <!-- 学习进度概览 -->
-      <div class="progress-overview">
-        <a-row :gutter="[16, 16]">
-          <a-col :xs="24" :sm="8">
-            <div class="progress-card">
-              <div class="progress-icon">
-                <Trophy class="w-6 h-6 text-yellow-500" />
-              </div>
-              <div class="progress-content">
-                <div class="progress-number">{{ completedLevels }}</div>
-                <div class="progress-label">已完成关卡</div>
-              </div>
-            </div>
-          </a-col>
-          <a-col :xs="24" :sm="8">
-            <div class="progress-card">
-              <div class="progress-icon">
-                <Star class="w-6 h-6 text-blue-500" />
-              </div>
-              <div class="progress-content">
-                <div class="progress-number">{{ totalStars }}</div>
-                <div class="progress-label">获得星星</div>
-              </div>
-            </div>
-          </a-col>
-          <a-col :xs="24" :sm="8">
-            <div class="progress-card">
-              <div class="progress-icon">
-                <Zap class="w-6 h-6 text-purple-500" />
-              </div>
-              <div class="progress-content">
-                <div class="progress-number">{{ currentStreak }}</div>
-                <div class="progress-label">连胜记录</div>
-              </div>
-            </div>
-          </a-col>
-        </a-row>
-      </div>
-
-      <!-- 游戏类型选择 -->
-      <div class="game-categories">
-        <h2 class="section-title">选择游戏类型</h2>
-        <a-row :gutter="[24, 24]">
-          <a-col :xs="24" :sm="12" :lg="6" v-for="category in gameCategories" :key="category.id">
-            <div 
-              class="category-card"
-              :class="{ active: selectedCategory === category.id }"
-              @click="selectCategory(category.id)"
+  <div class="min-h-screen bg-gray-50">
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-sm border-b">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+          <div class="flex items-center">
+            <button
+              @click="goBack"
+              class="mr-4 p-2 text-gray-500 hover:text-gray-700 transition-colors"
             >
-              <div class="category-icon">
-                <component :is="category.icon" class="w-8 h-8" />
-              </div>
-              <h3 class="category-title">{{ category.title }}</h3>
-              <p class="category-desc">{{ category.description }}</p>
-              <div class="category-progress">
-                <a-progress
-                  :percent="category.progress"
-                  :show-info="false"
-                  size="small"
-                  :stroke-color="category.color"
-                />
-                <span class="progress-text">{{ category.progress }}% 完成</span>
-              </div>
+              <ArrowLeft class="w-5 h-5" />
+            </button>
+            <Gamepad2 class="w-8 h-8 text-blue-600 mr-3" />
+            <h1 class="text-xl font-bold text-gray-900">游戏学习</h1>
+          </div>
+          <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 bg-yellow-100 px-3 py-1 rounded-full">
+              <Star class="w-4 h-4 text-yellow-600" />
+              <span class="text-sm font-medium text-yellow-800">{{ userStats.totalStars }}</span>
             </div>
-          </a-col>
-        </a-row>
+            <div class="flex items-center space-x-2 bg-blue-100 px-3 py-1 rounded-full">
+              <Trophy class="w-4 h-4 text-blue-600" />
+              <span class="text-sm font-medium text-blue-800">等级 {{ userStats.level }}</span>
+            </div>
+          </div>
+        </div>
       </div>
+    </nav>
 
-      <!-- 关卡列表 -->
-      <div class="levels-section" v-if="selectedCategory">
-        <h2 class="section-title">
-          {{ getCurrentCategoryTitle() }} - 选择关卡
-        </h2>
-        <div class="levels-grid">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- 游戏类型选择 -->
+      <div class="mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">选择游戏类型</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div
-            v-for="level in filteredLevels"
-            :key="level.id"
-            class="level-card"
-            :class="{
-              locked: !level.unlocked,
-              completed: level.completed,
-              current: level.id === currentLevel
-            }"
-            @click="selectLevel(level)"
+            v-for="gameType in gameTypes"
+            :key="gameType.id"
+            @click="selectGameType(gameType)"
+            :class="[
+              'bg-white rounded-xl p-6 shadow-sm border cursor-pointer transition-all duration-300',
+              selectedGameType?.id === gameType.id
+                ? 'border-blue-500 shadow-md ring-2 ring-blue-200'
+                : 'hover:shadow-md hover:border-gray-300'
+            ]"
           >
-            <div class="level-header">
-              <div class="level-number">{{ level.level }}</div>
-              <div class="level-status">
-                <Lock v-if="!level.unlocked" class="w-4 h-4 text-gray-400" />
-                <CheckCircle v-else-if="level.completed" class="w-4 h-4 text-green-500" />
-                <Play v-else class="w-4 h-4 text-blue-500" />
+            <div class="text-center">
+              <div
+                :class="[
+                  'inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 transition-transform',
+                  gameType.color,
+                  selectedGameType?.id === gameType.id ? 'scale-110' : 'group-hover:scale-105'
+                ]"
+              >
+                <component :is="gameType.icon" class="w-8 h-8 text-white" />
               </div>
-            </div>
-            <h3 class="level-title">{{ level.title }}</h3>
-            <p class="level-desc">{{ level.description }}</p>
-            <div class="level-stats">
-              <div class="stat-item">
-                <Star class="w-3 h-3" />
-                <span>{{ level.stars || 0 }}/3</span>
+              <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ gameType.name }}</h3>
+              <p class="text-sm text-gray-600 mb-4">{{ gameType.description }}</p>
+              <div class="flex items-center justify-center space-x-4 text-sm text-gray-500">
+                <div class="flex items-center">
+                  <Clock class="w-4 h-4 mr-1" />
+                  {{ gameType.duration }}分钟
+                </div>
+                <div class="flex items-center">
+                  <Star class="w-4 h-4 mr-1" />
+                  {{ gameType.maxStars }}星
+                </div>
               </div>
-              <div class="stat-item">
-                <Target class="w-3 h-3" />
-                <span>{{ level.score || 0 }}分</span>
-              </div>
-            </div>
-            <div class="level-difficulty">
-              <a-tag :color="getDifficultyColor(level.difficulty)">
-                {{ getDifficultyText(level.difficulty) }}
-              </a-tag>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 游戏界面弹窗 -->
-      <a-modal
-        v-model:open="gameModalVisible"
-        :title="currentGameLevel?.title"
-        width="800px"
-        :footer="null"
-        :closable="false"
-        class="game-modal"
+      <!-- 关卡选择 -->
+      <div v-if="selectedGameType" class="mb-8">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold text-gray-900">{{ selectedGameType.name }} - 选择关卡</h2>
+          <div class="text-sm text-gray-600">
+            已完成 {{ completedLevels }}/{{ totalLevels }} 关
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div
+            v-for="level in levels"
+            :key="level.id"
+            @click="selectLevel(level)"
+            :class="[
+              'relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-300',
+              level.status === 'completed'
+                ? 'bg-green-50 border-green-200 hover:bg-green-100'
+                : level.status === 'unlocked'
+                ? 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-md'
+                : 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-60'
+            ]"
+          >
+            <!-- 关卡状态图标 -->
+            <div class="absolute -top-2 -right-2">
+              <div
+                v-if="level.status === 'completed'"
+                class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center"
+              >
+                <Check class="w-4 h-4 text-white" />
+              </div>
+              <div
+                v-else-if="level.status === 'locked'"
+                class="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center"
+              >
+                <Lock class="w-4 h-4 text-white" />
+              </div>
+            </div>
+
+            <div class="text-center">
+              <div class="text-2xl font-bold text-gray-900 mb-2">{{ level.number }}</div>
+              <div class="text-sm text-gray-600 mb-2">{{ level.name }}</div>
+              
+              <!-- 星星评级 -->
+              <div class="flex justify-center space-x-1 mb-2">
+                <Star
+                  v-for="i in 3"
+                  :key="i"
+                  :class="[
+                    'w-4 h-4',
+                    i <= (level.stars || 0) ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                  ]"
+                />
+              </div>
+              
+              <div class="text-xs text-gray-500">{{ level.difficulty }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 游戏界面 -->
+      <div v-if="currentGame" class="bg-white rounded-xl shadow-lg border overflow-hidden">
+        <!-- 游戏头部 -->
+        <div class="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-xl font-bold">{{ currentGame.title }}</h3>
+              <p class="text-blue-100">关卡 {{ currentGame.level }} - {{ currentGame.difficulty }}</p>
+            </div>
+            <div class="flex items-center space-x-4">
+              <div class="text-center">
+                <div class="text-2xl font-bold">{{ gameState.score }}</div>
+                <div class="text-xs text-blue-100">得分</div>
+              </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold">{{ gameState.timeLeft }}</div>
+                <div class="text-xs text-blue-100">剩余时间</div>
+              </div>
+              <div class="text-center">
+                <div class="flex space-x-1">
+                  <Heart
+                    v-for="i in gameState.lives"
+                    :key="i"
+                    class="w-5 h-5 text-red-400 fill-current"
+                  />
+                </div>
+                <div class="text-xs text-blue-100">生命</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 游戏内容区域 -->
+        <div class="p-8">
+          <!-- 单词匹配游戏 -->
+          <div v-if="currentGame.type === 'word-match'" class="space-y-6">
+            <div class="text-center">
+              <h4 class="text-lg font-semibold text-gray-900 mb-2">选择正确的中文意思</h4>
+              <div class="text-3xl font-bold text-blue-600 mb-6">{{ currentQuestion.word }}</div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+              <button
+                v-for="option in currentQuestion.options"
+                :key="option.id"
+                @click="selectAnswer(option)"
+                :class="[
+                  'p-4 rounded-lg border-2 text-lg font-medium transition-all duration-300',
+                  selectedAnswer?.id === option.id
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                ]"
+              >
+                {{ option.text }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 听力游戏 -->
+          <div v-else-if="currentGame.type === 'listening'" class="space-y-6">
+            <div class="text-center">
+              <h4 class="text-lg font-semibold text-gray-900 mb-4">听音选词</h4>
+              <button
+                @click="playAudio"
+                class="inline-flex items-center justify-center w-20 h-20 bg-blue-600 rounded-full text-white hover:bg-blue-700 transition-colors mb-6"
+              >
+                <Volume2 class="w-8 h-8" />
+              </button>
+              <p class="text-sm text-gray-600">点击播放按钮听发音</p>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <button
+                v-for="option in currentQuestion.options"
+                :key="option.id"
+                @click="selectAnswer(option)"
+                :class="[
+                  'p-4 rounded-lg border-2 text-lg font-medium transition-all duration-300',
+                  selectedAnswer?.id === option.id
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                ]"
+              >
+                {{ option.text }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 拼写游戏 -->
+          <div v-else-if="currentGame.type === 'spelling'" class="space-y-6">
+            <div class="text-center">
+              <h4 class="text-lg font-semibold text-gray-900 mb-2">根据图片拼写单词</h4>
+              <div class="w-48 h-48 mx-auto mb-6 bg-gray-100 rounded-lg flex items-center justify-center">
+                <img
+                  :src="currentQuestion.image"
+                  :alt="currentQuestion.word"
+                  class="max-w-full max-h-full object-contain"
+                />
+              </div>
+            </div>
+            
+            <div class="max-w-md mx-auto">
+              <input
+                v-model="spellingAnswer"
+                type="text"
+                placeholder="请输入单词..."
+                class="w-full p-4 text-center text-xl border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                @keyup.enter="checkSpelling"
+              />
+            </div>
+          </div>
+
+          <!-- 游戏控制按钮 -->
+          <div class="flex justify-center space-x-4 mt-8">
+            <button
+              v-if="selectedAnswer || spellingAnswer"
+              @click="submitAnswer"
+              class="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              提交答案
+            </button>
+            <button
+              @click="skipQuestion"
+              class="px-8 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+            >
+              跳过
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 游戏结果弹窗 -->
+      <div
+        v-if="showResult"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       >
-        <GameInterface
-          v-if="gameModalVisible && currentGameLevel"
-          :level="currentGameLevel"
-          @complete="handleGameComplete"
-          @close="closeGame"
-        />
-      </a-modal>
+        <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+          <div class="text-center">
+            <div
+              :class="[
+                'w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center',
+                gameResult.success ? 'bg-green-100' : 'bg-red-100'
+              ]"
+            >
+              <CheckCircle
+                v-if="gameResult.success"
+                class="w-8 h-8 text-green-600"
+              />
+              <XCircle
+                v-else
+                class="w-8 h-8 text-red-600"
+              />
+            </div>
+            
+            <h3
+              :class="[
+                'text-xl font-bold mb-2',
+                gameResult.success ? 'text-green-600' : 'text-red-600'
+              ]"
+            >
+              {{ gameResult.success ? '回答正确！' : '回答错误' }}
+            </h3>
+            
+            <p class="text-gray-600 mb-4">{{ gameResult.message }}</p>
+            
+            <div class="flex justify-center space-x-4">
+              <button
+                @click="nextQuestion"
+                class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              >
+                下一题
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-  </MainLayout>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
-import { useGameStore } from '@/stores/game'
-import { useAuthStore } from '@/stores/auth'
-import MainLayout from '@/layouts/MainLayout.vue'
-import GameInterface from '@/components/GameInterface.vue'
 import {
+  ArrowLeft,
   Gamepad2,
-  Trophy,
   Star,
-  Zap,
-  BookOpen,
-  Volume2,
-  PenTool,
-  Brain,
+  Trophy,
+  Clock,
+  Check,
   Lock,
+  Heart,
+  Volume2,
   CheckCircle,
-  Play,
-  Target
+  XCircle,
+  BookOpen,
+  Headphones,
+  PenTool
 } from 'lucide-vue-next'
 
 const router = useRouter()
-const gameStore = useGameStore()
-const authStore = useAuthStore()
 
-const selectedCategory = ref<string>('')
-const gameModalVisible = ref(false)
-const currentGameLevel = ref<any>(null)
-const currentLevel = ref(1)
+// 用户统计
+const userStats = reactive({
+  totalStars: 124,
+  level: 5
+})
 
-// 模拟数据
-const completedLevels = ref(8)
-const totalStars = ref(18)
-const currentStreak = ref(5)
-
-const gameCategories = ref([
+// 游戏类型
+const gameTypes = ref([
   {
-    id: 'vocabulary',
-    title: '单词学习',
-    description: '学习新单词，扩展词汇量',
+    id: 'word-match',
+    name: '单词匹配',
+    description: '将英文单词与中文意思匹配',
     icon: BookOpen,
-    progress: 75,
-    color: '#1890ff'
+    color: 'bg-gradient-to-r from-blue-500 to-blue-600',
+    duration: 5,
+    maxStars: 3
   },
   {
     id: 'listening',
-    title: '听力训练',
-    description: '提高英语听力理解能力',
-    icon: Volume2,
-    progress: 60,
-    color: '#52c41a'
+    name: '听力练习',
+    description: '听发音选择正确的单词',
+    icon: Headphones,
+    color: 'bg-gradient-to-r from-green-500 to-green-600',
+    duration: 8,
+    maxStars: 3
   },
   {
-    id: 'writing',
-    title: '拼写练习',
-    description: '练习单词和句子拼写',
+    id: 'spelling',
+    name: '拼写练习',
+    description: '根据图片拼写正确的单词',
     icon: PenTool,
-    progress: 45,
-    color: '#fa8c16'
-  },
-  {
-    id: 'grammar',
-    title: '语法游戏',
-    description: '通过游戏学习语法规则',
-    icon: Brain,
-    progress: 30,
-    color: '#722ed1'
+    color: 'bg-gradient-to-r from-purple-500 to-purple-600',
+    duration: 10,
+    maxStars: 3
   }
 ])
 
-// 计算过滤后的关卡
-const filteredLevels = computed(() => {
-  if (!selectedCategory.value) return []
-  
-  return gameStore.gameLevels.filter(level => 
-    level.category === selectedCategory.value
-  ).map(level => {
-    const progress = gameStore.gameProgress.find(p => p.level_id === level.id)
-    return {
-      ...level,
-      completed: progress?.completed || false,
-      stars: progress?.stars || 0,
-      score: progress?.best_score || 0,
-      unlocked: level.level <= currentLevel.value
-    }
-  })
+// 选中的游戏类型
+const selectedGameType = ref(null)
+
+// 关卡数据
+const levels = ref([
+  { id: 1, number: 1, name: '基础词汇', difficulty: '简单', status: 'completed', stars: 3 },
+  { id: 2, number: 2, name: '动物单词', difficulty: '简单', status: 'completed', stars: 2 },
+  { id: 3, number: 3, name: '颜色词汇', difficulty: '简单', status: 'completed', stars: 3 },
+  { id: 4, number: 4, name: '数字学习', difficulty: '中等', status: 'unlocked', stars: 0 },
+  { id: 5, number: 5, name: '家庭成员', difficulty: '中等', status: 'unlocked', stars: 0 },
+  { id: 6, number: 6, name: '食物词汇', difficulty: '中等', status: 'locked', stars: 0 },
+  { id: 7, number: 7, name: '交通工具', difficulty: '困难', status: 'locked', stars: 0 },
+  { id: 8, number: 8, name: '职业词汇', difficulty: '困难', status: 'locked', stars: 0 }
+])
+
+// 当前游戏
+const currentGame = ref(null)
+
+// 游戏状态
+const gameState = reactive({
+  score: 0,
+  timeLeft: 60,
+  lives: 3,
+  currentQuestionIndex: 0
 })
 
-// 获取当前分类标题
-const getCurrentCategoryTitle = () => {
-  const category = gameCategories.value.find(c => c.id === selectedCategory.value)
-  return category?.title || ''
+// 当前题目
+const currentQuestion = ref({
+  word: 'apple',
+  options: [
+    { id: 1, text: '苹果', correct: true },
+    { id: 2, text: '香蕉', correct: false },
+    { id: 3, text: '橙子', correct: false },
+    { id: 4, text: '葡萄', correct: false }
+  ],
+  image: 'https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=red%20apple%20fruit&image_size=square'
+})
+
+// 选中的答案
+const selectedAnswer = ref(null)
+const spellingAnswer = ref('')
+
+// 游戏结果
+const showResult = ref(false)
+const gameResult = reactive({
+  success: false,
+  message: ''
+})
+
+// 计算属性
+const completedLevels = computed(() => levels.value.filter(level => level.status === 'completed').length)
+const totalLevels = computed(() => levels.value.length)
+
+// 方法
+const goBack = () => {
+  router.push('/')
 }
 
-// 选择游戏分类
-const selectCategory = (categoryId: string) => {
-  selectedCategory.value = categoryId
+const selectGameType = (gameType) => {
+  selectedGameType.value = gameType
 }
 
-// 选择关卡
-const selectLevel = (level: any) => {
-  if (!level.unlocked) {
-    message.warning('请先完成前面的关卡！')
-    return
+const selectLevel = (level) => {
+  if (level.status === 'locked') return
+  
+  currentGame.value = {
+    type: selectedGameType.value.id,
+    title: `${selectedGameType.value.name} - ${level.name}`,
+    level: level.number,
+    difficulty: level.difficulty
   }
   
-  currentGameLevel.value = level
-  gameModalVisible.value = true
+  // 重置游戏状态
+  gameState.score = 0
+  gameState.timeLeft = selectedGameType.value.duration * 60
+  gameState.lives = 3
+  gameState.currentQuestionIndex = 0
+  
+  startGame()
 }
 
-// 获取难度颜色
-const getDifficultyColor = (difficulty: string) => {
-  const colors = {
-    easy: 'green',
-    medium: 'orange',
-    hard: 'red'
+const startGame = () => {
+  // 开始游戏逻辑
+  console.log('游戏开始')
+}
+
+const selectAnswer = (option) => {
+  selectedAnswer.value = option
+}
+
+const submitAnswer = () => {
+  if (!selectedAnswer.value && !spellingAnswer.value) return
+  
+  let isCorrect = false
+  
+  if (currentGame.value.type === 'word-match' || currentGame.value.type === 'listening') {
+    isCorrect = selectedAnswer.value?.correct || false
+  } else if (currentGame.value.type === 'spelling') {
+    isCorrect = spellingAnswer.value.toLowerCase() === currentQuestion.value.word.toLowerCase()
   }
-  return colors[difficulty as keyof typeof colors] || 'blue'
-}
-
-// 获取难度文本
-const getDifficultyText = (difficulty: string) => {
-  const texts = {
-    easy: '简单',
-    medium: '中等',
-    hard: '困难'
+  
+  gameResult.success = isCorrect
+  gameResult.message = isCorrect ? '太棒了！继续加油！' : `正确答案是：${currentQuestion.value.word}`
+  
+  if (isCorrect) {
+    gameState.score += 10
+  } else {
+    gameState.lives -= 1
   }
-  return texts[difficulty as keyof typeof texts] || '未知'
+  
+  showResult.value = true
 }
 
-// 处理游戏完成
-const handleGameComplete = (result: any) => {
-  message.success(`恭喜完成！获得 ${result.stars} 颗星星，${result.points} 积分！`)
-  
-  // 更新游戏进度
-  gameStore.completeGame(currentGameLevel.value.id, result)
-  
-  // 关闭游戏弹窗
-  gameModalVisible.value = false
-  currentGameLevel.value = null
-  
-  // 刷新数据
-  gameStore.fetchGameProgress()
+const checkSpelling = () => {
+  submitAnswer()
 }
 
-// 关闭游戏
-const closeGame = () => {
-  gameModalVisible.value = false
-  currentGameLevel.value = null
+const skipQuestion = () => {
+  nextQuestion()
+}
+
+const nextQuestion = () => {
+  showResult.value = false
+  selectedAnswer.value = null
+  spellingAnswer.value = ''
+  
+  // 加载下一题
+  gameState.currentQuestionIndex += 1
+  
+  // 这里可以添加更多题目数据
+  console.log('下一题')
+}
+
+const playAudio = () => {
+  // 播放音频逻辑
+  console.log('播放音频:', currentQuestion.value.word)
 }
 
 onMounted(() => {
-  // 加载游戏数据
-  gameStore.fetchGameLevels()
-  gameStore.fetchGameProgress()
-  
-  // 默认选择第一个分类
-  if (gameCategories.value.length > 0) {
-    selectedCategory.value = gameCategories.value[0].id
-  }
+  // 初始化游戏数据
 })
 </script>
-
-<style scoped lang="less">
-.games-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  font-weight: 700;
-  color: #1f2937;
-  margin: 0 0 8px 0;
-}
-
-.page-subtitle {
-  font-size: 16px;
-  color: #6b7280;
-  margin: 0;
-}
-
-.progress-overview {
-  margin-bottom: 40px;
-}
-
-.progress-card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  }
-}
-
-.progress-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: rgba(24, 144, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.progress-content {
-  flex: 1;
-}
-
-.progress-number {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1f2937;
-  line-height: 1;
-}
-
-.progress-label {
-  font-size: 14px;
-  color: #6b7280;
-  margin-top: 4px;
-}
-
-.section-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 24px;
-}
-
-.game-categories {
-  margin-bottom: 40px;
-}
-
-.category-card {
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  border: 2px solid transparent;
-
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  }
-
-  &.active {
-    border-color: #1890ff;
-    box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.1);
-  }
-}
-
-.category-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 16px;
-}
-
-.category-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0 0 8px 0;
-}
-
-.category-desc {
-  color: #6b7280;
-  font-size: 14px;
-  margin: 0 0 16px 0;
-  line-height: 1.5;
-}
-
-.category-progress {
-  text-align: left;
-}
-
-.progress-text {
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 4px;
-}
-
-.levels-section {
-  margin-bottom: 40px;
-}
-
-.levels-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-}
-
-.level-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  border: 2px solid transparent;
-
-  &:hover:not(.locked) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    border-color: #1890ff;
-  }
-
-  &.locked {
-    opacity: 0.6;
-    cursor: not-allowed;
-    background: #f5f5f5;
-  }
-
-  &.completed {
-    border-color: #52c41a;
-    background: linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%);
-  }
-
-  &.current {
-    border-color: #fa8c16;
-    background: linear-gradient(135deg, #fff7e6 0%, #fff2e8 100%);
-  }
-}
-
-.level-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.level-number {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: #1890ff;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.level-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0 0 8px 0;
-}
-
-.level-desc {
-  color: #6b7280;
-  font-size: 14px;
-  margin: 0 0 16px 0;
-  line-height: 1.4;
-}
-
-.level-stats {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.level-difficulty {
-  display: flex;
-  justify-content: flex-end;
-}
-
-:deep(.game-modal .ant-modal-content) {
-  padding: 0;
-  overflow: hidden;
-}
-
-:deep(.game-modal .ant-modal-header) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-bottom: none;
-}
-
-:deep(.game-modal .ant-modal-title) {
-  color: white;
-  font-weight: 600;
-}
-
-// 响应式设计
-@media (max-width: 768px) {
-  .page-title {
-    font-size: 24px;
-  }
-
-  .progress-card {
-    padding: 16px;
-  }
-
-  .progress-number {
-    font-size: 24px;
-  }
-
-  .category-card {
-    padding: 20px;
-  }
-
-  .category-icon {
-    width: 48px;
-    height: 48px;
-  }
-
-  .levels-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .level-card {
-    padding: 16px;
-  }
-}
-</style>
